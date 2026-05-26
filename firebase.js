@@ -16,6 +16,7 @@ import {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 
 // ── Calyx Meet Firebase project (shared across all Calyx products) ──────────
@@ -43,4 +44,5 @@ export {
   signOut,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
 };

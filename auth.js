@@ -10,15 +10,17 @@ import {
   signInWithPopup,
   onAuthStateChanged,
   updateProfile,
+  sendPasswordResetEmail,
 } from './firebase.js';
 
 // ── Redirect if already logged in ────────────────────────────────────────────
 onAuthStateChanged(auth, (user) => {
   if (user) {
-    // User is signed in — redirect to the main app
-    window.location.href = '/app.html';
+    // User is signed in — redirect to the main chat app
+    // Change this path when you add a dedicated app page (e.g. /chat.html)
+    window.location.href = '/chat';
   }
-});
+})
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 const tabSignin    = document.getElementById('tab-signin');
@@ -217,7 +219,6 @@ btnForgot.addEventListener('click', async () => {
     return;
   }
   try {
-    const { sendPasswordResetEmail } = await import('firebase/auth');
     await sendPasswordResetEmail(auth, email);
     showToast(`Password reset email sent to ${email}`);
   } catch (err) {
