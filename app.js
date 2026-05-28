@@ -1,4 +1,17 @@
 // Calyx Chat Application Logic
+import { auth } from './firebase.js';
+
+function getCurrentUserName() {
+  const user = auth.currentUser;
+  return user?.displayName || user?.email?.split('@')[0] || 'Me';
+}
+
+function getCurrentUserInitials() {
+  const user = auth.currentUser;
+  return user?.displayName
+    ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+    : (user?.email ? user.email.slice(0, 2).toUpperCase() : 'ME');
+}
 
 // Initial Application State
 const state = {
@@ -571,7 +584,7 @@ function renderChatActiveWindow(chatId) {
     } else {
       item.className = `message-item ${msg.isMe ? 'sent' : ''}`;
       
-      const msgInitials = msg.isMe ? 'AM' : msg.senderName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+      const msgInitials = msg.isMe ? getCurrentUserInitials() : msg.senderName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const msgAvatarColor = msg.isMe ? 'yellow' : chat.avatarColor;
       
       let msgAvatarHtml = '';
@@ -612,7 +625,7 @@ function renderChatActiveWindow(chatId) {
         </div>
         <div class="message-content-wrap">
           <div class="message-sender-row">
-            <span class="message-sender-name">${msg.isMe ? 'Arunabh M' : msg.senderName}</span>
+            <span class="message-sender-name">${msg.isMe ? getCurrentUserName() : msg.senderName}</span>
             <span class="message-time">${msg.time}</span>
           </div>
           <div class="message-bubble">
@@ -669,7 +682,7 @@ function handleSendMessage() {
   // Add user message to history
   activeChat.history.push({
     id: 'msg-' + Date.now(),
-    senderName: 'Arunabh M',
+    senderName: getCurrentUserName(),
     isMe: true,
     text: text,
     time: timeString
@@ -704,7 +717,7 @@ function simulateBotResponse(chatId, userText) {
 
   if (chatId === 'calyx-bot') {
     if (normText.includes('hello') || normText.includes('hi') || normText.includes('hey')) {
-      replyText = "Hello Arunabh! Great to chat. I am fully customized with the yellow and teal Calyx Sigma styling. Try asking me about 'colors', 'features', or 'meetings'!";
+      replyText = `Hello ${getCurrentUserName()}! Great to chat. I am fully customized with the yellow and teal Calyx Sigma styling. Try asking me about 'colors', 'features', or 'meetings'!`;
     } else if (normText.includes('color') || normText.includes('yellow') || normText.includes('blue')) {
       replyText = "Per your configuration, the primary theme color is now a vibrant premium gold/yellow (#fbbf24) combined with Calyx's classic cyan/teal (#00d2ff) accents. The standard blues have been completely replaced!";
     } else if (normText.includes('feature') || normText.includes('chat') || normText.includes('workspace')) {

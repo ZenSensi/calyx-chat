@@ -4,50 +4,17 @@
   /* Color Reference: Calyx Meet (Swapped blue/indigo with yellow) */
   --primary-yellow: #fbbf24; /* Amber 400 */
   --primary-yellow-hover: #f59e0b; /* Amber 500 */
-  --accent-teal: #0891b2; /* Teal 600 */
-  --accent-teal-glow: rgba(8, 145, 178, 0.1);
+  --accent-teal: #00d2ff; /* Cyan-Teal glow */
+  --accent-teal-glow: rgba(0, 210, 255, 0.15);
   --accent-yellow-glow: rgba(251, 191, 36, 0.15);
   
-  /* Light Theme Variables */
-  --bg-dark: #f8fafc;
-  --bg-panel: rgba(255, 255, 255, 0.75);
-  --bg-panel-light: rgba(15, 23, 42, 0.04);
-  --border-color: rgba(15, 23, 42, 0.08);
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --accent-red: #ef4444;
-  
-  --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-blur: blur(24px);
-  --glass-border: 1px solid rgba(15, 23, 42, 0.08);
-  
-  --bg-body-start: #fafaf9;
-  --bg-body-mid: #fefbf3; /* Subtle gold-yellow glow */
-  --bg-body-end: #f5f5f4;
-  
-  --text-rgb: 15, 23, 42;
-  --bg-rgb: 248, 250, 252;
-  
-  --border-radius-lg: 24px;
-  --border-radius-md: 16px;
-  --border-radius-sm: 10px;
-  
-  --font-family: "Outfit", "Inter", -apple-system, sans-serif;
-  --google-yellow: var(--primary-yellow);
-  --google-yellow-hover: var(--primary-yellow-hover);
-  --card-shadow-opacity: 0.05;
-}
-
-body.dark {
-  /* Dark Theme Variables */
+  /* Dark Theme Variables as Default */
   --bg-dark: #020204;
   --bg-panel: rgba(13, 12, 10, 0.65); /* Charcoal with a gold-yellow tint */
   --bg-panel-light: rgba(248, 250, 252, 0.06);
   --border-color: rgba(248, 250, 252, 0.08);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
-  --accent-teal: #00d2ff; /* Cyan-Teal glow */
-  --accent-teal-glow: rgba(0, 210, 255, 0.15);
   --accent-red: #f43f5e;
   
   --glass-bg: rgba(6, 6, 8, 0.6);
@@ -60,6 +27,14 @@ body.dark {
   
   --text-rgb: 248, 250, 252;
   --bg-rgb: 3, 4, 8;
+  
+  --border-radius-lg: 24px;
+  --border-radius-md: 16px;
+  --border-radius-sm: 10px;
+  
+  --font-family: "Outfit", "Inter", -apple-system, sans-serif;
+  --google-yellow: var(--primary-yellow);
+  --google-yellow-hover: var(--primary-yellow-hover);
   --card-shadow-opacity: 0.4;
 }
 
@@ -99,14 +74,10 @@ body {
 
 .glow-blob {
   filter: blur(140px);
-  opacity: 0.35;
+  opacity: 0.18;
   border-radius: 50%;
   position: absolute;
   animation: floatGlow 18s ease-in-out infinite alternate;
-}
-
-body.dark .glow-blob {
-  opacity: 0.18;
 }
 
 .glow-blob-yellow {
@@ -1563,7 +1534,7 @@ body.dark .glow-blob {
 }
 
 .modal-content {
-  background: var(--bg-panel);
+  background: #0d0c0a; /* Match panel background */
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   border: var(--glass-border);
@@ -1572,11 +1543,6 @@ body.dark .glow-blob {
   max-width: 480px;
   padding: 28px;
   position: relative;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, var(--card-shadow-opacity));
-}
-
-body.dark .modal-content {
-  background: #0d0c0a; /* Match panel background */
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 

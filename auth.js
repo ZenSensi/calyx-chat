@@ -231,7 +231,8 @@ registerForm.addEventListener('submit', async (e) => {
   try {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName: name });
-    // onAuthStateChanged will redirect
+    // Force a reload so onAuthStateChanged re-runs with the populated displayName
+    location.reload();
   } catch (err) {
     console.error("Register error:", err);
     showError(registerError, friendlyError(err));
