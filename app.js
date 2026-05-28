@@ -98,9 +98,11 @@ const state = {
 };
 
 // DOM Elements
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
   initApp();
-});
+}
 
 function initApp() {
   // Setup Lucide icons

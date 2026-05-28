@@ -11,29 +11,54 @@ import {
   onAuthStateChanged,
   updateProfile,
   sendPasswordResetEmail,
+  signOut,
 } from './firebase.js';
 
 // ── Redirect if already logged in ────────────────────────────────────────────
 onAuthStateChanged(auth, (user) => {
+  const authContainer = document.getElementById('auth-container');
+  const appContainer = document.getElementById('app');
+  const gridBg = document.getElementById('app-grid-bg');
+  const glowBg = document.getElementById('app-glow-bg');
+
   if (user) {
     // ✅ User is signed in.
-    // Update this path when you create your main app page, e.g.:
-    //   window.location.href = '/app.html';
-    // For now, show a success message so you can verify auth is working.
-    document.body.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;font-family:Inter,sans-serif;background:#010307;color:#f0f4ff;gap:16px;text-align:center;padding:24px;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="margin-bottom:8px">
-          <circle cx="12" cy="12" r="10" stroke="#10b981" stroke-width="2"/>
-          <path d="M8 12l3 3 5-6" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <h2 style="font-size:22px;font-weight:700;margin:0">Signed in successfully!</h2>
-        <p style="color:#8b9ab8;margin:0">Welcome, <strong style="color:#fbbf24">${user.displayName || user.email}</strong></p>
-        <p style="color:#4e5e7a;font-size:13px;margin:0">Firebase auth is working ✓<br>Connect your app page to complete the setup.</p>
-        <button onclick="import('./firebase.js').then(m => m.auth.signOut()).then(() => location.reload())"
-          style="margin-top:16px;padding:10px 24px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#f0f4ff;font-size:14px;cursor:pointer;">
-          Sign Out
-        </button>
-      </div>`;
+    if (authContainer) authContainer.style.display = 'none';
+    if (gridBg) gridBg.style.display = 'block';
+    if (glowBg) glowBg.style.display = 'block';
+    if (appContainer) {
+      appContainer.style.display = 'flex';
+      
+      // Update profile button initials
+      const profileBtn = document.getElementById('user-profile-btn');
+      if (profileBtn) {
+        const initials = user.displayName
+          ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+          : (user.email ? user.email.slice(0, 2).toUpperCase() : 'AM');
+        profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
+        
+        // Add sign out listener if it doesn't already have one
+        if (!profileBtn.dataset.hasSignoutListener) {
+          profileBtn.dataset.hasSignoutListener = 'true';
+          profileBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to sign out?')) {
+              signOut(auth).then(() => {
+                location.reload();
+              });
+            }
+          });
+        }
+      }
+      
+      // Dynamically load the chat application logic
+      import('./app.js');
+    }
+  } else {
+    // ❌ User is signed out.
+    if (authContainer) authContainer.style.display = 'flex';
+    if (appContainer) appContainer.style.display = 'none';
+    if (gridBg) gridBg.style.display = 'none';
+    if (glowBg) glowBg.style.display = 'none';
   }
 });
 
@@ -65,8 +90,8 @@ const btnGoogleRegister = document.getElementById('btn-google-register');
 
 const btnForgot = document.getElementById('btn-forgot');
 
-const toast = document.getElementById('toast');
-const toastMsg = document.getElementById('toast-msg');
+const toast = document.getElementById('auth-toast');
+const toastMsg = document.getElementById('auth-toast-msg');
 
 // ── Tab Switcher ──────────────────────────────────────────────────────────────
 function switchTab(toSignin) {
