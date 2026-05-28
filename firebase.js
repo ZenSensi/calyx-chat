@@ -21,18 +21,18 @@ import {
 
 // ── Calyx Meet Firebase project (shared across all Calyx products) ──────────
 const firebaseConfig = {
-  apiKey:            "AIzaSyAkQ-Pu5Xz1l-QwIICv8J2HsptSjYhE2d8",
-  authDomain:        "calyx-meet.firebaseapp.com",
-  projectId:         "calyx-meet",
-  storageBucket:     "calyx-meet.firebasestorage.app",
-  messagingSenderId: "554595048851",
-  appId:             "1:554595048851:web:1f75faaf50e456a5e99c66",
-  measurementId:     "G-VGZWN7XZBQ",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 // ───────────────────────────────────────────────────────────────────────────
 
-const app      = initializeApp(firebaseConfig);
-const auth     = getAuth(app);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
 export {

@@ -16,40 +16,56 @@ import {
 // ── Redirect if already logged in ────────────────────────────────────────────
 onAuthStateChanged(auth, (user) => {
   if (user) {
-    // User is signed in — redirect to the main chat app
-    // Change this path when you add a dedicated app page (e.g. /chat.html)
-    window.location.href = '/chat';
+    // ✅ User is signed in.
+    // Update this path when you create your main app page, e.g.:
+    //   window.location.href = '/app.html';
+    // For now, show a success message so you can verify auth is working.
+    document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;font-family:Inter,sans-serif;background:#010307;color:#f0f4ff;gap:16px;text-align:center;padding:24px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="margin-bottom:8px">
+          <circle cx="12" cy="12" r="10" stroke="#10b981" stroke-width="2"/>
+          <path d="M8 12l3 3 5-6" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h2 style="font-size:22px;font-weight:700;margin:0">Signed in successfully!</h2>
+        <p style="color:#8b9ab8;margin:0">Welcome, <strong style="color:#fbbf24">${user.displayName || user.email}</strong></p>
+        <p style="color:#4e5e7a;font-size:13px;margin:0">Firebase auth is working ✓<br>Connect your app page to complete the setup.</p>
+        <button onclick="import('./firebase.js').then(m => m.auth.signOut()).then(() => location.reload())"
+          style="margin-top:16px;padding:10px 24px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#f0f4ff;font-size:14px;cursor:pointer;">
+          Sign Out
+        </button>
+      </div>`;
   }
-})
+});
+
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const tabSignin    = document.getElementById('tab-signin');
-const tabRegister  = document.getElementById('tab-register');
-const panelSignin  = document.getElementById('panel-signin');
-const panelRegister= document.getElementById('panel-register');
+const tabSignin = document.getElementById('tab-signin');
+const tabRegister = document.getElementById('tab-register');
+const panelSignin = document.getElementById('panel-signin');
+const panelRegister = document.getElementById('panel-register');
 const tabIndicator = document.querySelector('.tab-indicator');
 
-const signinForm      = document.getElementById('signin-form');
-const signinEmail     = document.getElementById('signin-email');
-const signinPassword  = document.getElementById('signin-password');
-const signinError     = document.getElementById('signin-error');
-const btnSignin       = document.getElementById('btn-signin');
+const signinForm = document.getElementById('signin-form');
+const signinEmail = document.getElementById('signin-email');
+const signinPassword = document.getElementById('signin-password');
+const signinError = document.getElementById('signin-error');
+const btnSignin = document.getElementById('btn-signin');
 
-const registerForm    = document.getElementById('register-form');
-const registerName    = document.getElementById('register-name');
-const registerEmail   = document.getElementById('register-email');
-const registerPassword= document.getElementById('register-password');
+const registerForm = document.getElementById('register-form');
+const registerName = document.getElementById('register-name');
+const registerEmail = document.getElementById('register-email');
+const registerPassword = document.getElementById('register-password');
 const registerConfirm = document.getElementById('register-confirm');
-const registerError   = document.getElementById('register-error');
-const btnRegister     = document.getElementById('btn-register');
-const pwStrength      = document.getElementById('pw-strength');
+const registerError = document.getElementById('register-error');
+const btnRegister = document.getElementById('btn-register');
+const pwStrength = document.getElementById('pw-strength');
 
-const btnGoogleSignin  = document.getElementById('btn-google-signin');
-const btnGoogleRegister= document.getElementById('btn-google-register');
+const btnGoogleSignin = document.getElementById('btn-google-signin');
+const btnGoogleRegister = document.getElementById('btn-google-register');
 
 const btnForgot = document.getElementById('btn-forgot');
 
-const toast    = document.getElementById('toast');
+const toast = document.getElementById('toast');
 const toastMsg = document.getElementById('toast-msg');
 
 // ── Tab Switcher ──────────────────────────────────────────────────────────────
@@ -96,8 +112,8 @@ registerPassword.addEventListener('input', () => {
   const val = registerPassword.value;
   if (!val) { pwStrength.textContent = ''; pwStrength.className = 'pw-strength'; return; }
   const hasUpper = /[A-Z]/.test(val);
-  const hasNum   = /[0-9]/.test(val);
-  const hasSpec  = /[^A-Za-z0-9]/.test(val);
+  const hasNum = /[0-9]/.test(val);
+  const hasSpec = /[^A-Za-z0-9]/.test(val);
   const score = (val.length >= 8 ? 1 : 0) + (hasUpper ? 1 : 0) + (hasNum ? 1 : 0) + (hasSpec ? 1 : 0);
   if (score <= 1) { pwStrength.textContent = '● Weak'; pwStrength.className = 'pw-strength weak'; }
   else if (score <= 2) { pwStrength.textContent = '●● Medium'; pwStrength.className = 'pw-strength medium'; }
@@ -117,11 +133,11 @@ function clearErrors() {
 }
 
 function setLoading(btn, loading) {
-  const text    = btn.querySelector('.btn-text');
+  const text = btn.querySelector('.btn-text');
   const spinner = btn.querySelector('.btn-spinner');
-  btn.disabled  = loading;
-  text.hidden   = loading;
-  spinner.hidden= !loading;
+  btn.disabled = loading;
+  text.hidden = loading;
+  spinner.hidden = !loading;
 }
 
 function showToast(msg, duration = 3500) {
@@ -133,15 +149,15 @@ function showToast(msg, duration = 3500) {
 
 function friendlyError(code) {
   const map = {
-    'auth/user-not-found':        'No account found with that email.',
-    'auth/wrong-password':        'Incorrect password. Please try again.',
-    'auth/email-already-in-use':  'An account with this email already exists.',
-    'auth/invalid-email':         'Please enter a valid email address.',
-    'auth/weak-password':         'Password must be at least 8 characters.',
-    'auth/too-many-requests':     'Too many attempts. Please try again later.',
-    'auth/popup-closed-by-user':  'Google sign-in was cancelled.',
-    'auth/network-request-failed':'Network error. Check your connection.',
-    'auth/invalid-credential':    'Incorrect email or password.',
+    'auth/user-not-found': 'No account found with that email.',
+    'auth/wrong-password': 'Incorrect password. Please try again.',
+    'auth/email-already-in-use': 'An account with this email already exists.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/weak-password': 'Password must be at least 8 characters.',
+    'auth/too-many-requests': 'Too many attempts. Please try again later.',
+    'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
+    'auth/network-request-failed': 'Network error. Check your connection.',
+    'auth/invalid-credential': 'Incorrect email or password.',
   };
   return map[code] || 'Something went wrong. Please try again.';
 }
@@ -151,7 +167,7 @@ signinForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearErrors();
 
-  const email    = signinEmail.value.trim();
+  const email = signinEmail.value.trim();
   const password = signinPassword.value;
 
   if (!email) { signinEmail.classList.add('error'); showError(signinError, 'Please enter your email.'); return; }
@@ -172,13 +188,13 @@ registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearErrors();
 
-  const name     = registerName.value.trim();
-  const email    = registerEmail.value.trim();
+  const name = registerName.value.trim();
+  const email = registerEmail.value.trim();
   const password = registerPassword.value;
-  const confirm  = registerConfirm.value;
+  const confirm = registerConfirm.value;
 
-  if (!name)    { registerName.classList.add('error'); showError(registerError, 'Please enter your name.'); return; }
-  if (!email)   { registerEmail.classList.add('error'); showError(registerError, 'Please enter your email.'); return; }
+  if (!name) { registerName.classList.add('error'); showError(registerError, 'Please enter your name.'); return; }
+  if (!email) { registerEmail.classList.add('error'); showError(registerError, 'Please enter your email.'); return; }
   if (password.length < 8) { registerPassword.classList.add('error'); showError(registerError, 'Password must be at least 8 characters.'); return; }
   if (password !== confirm) { registerConfirm.classList.add('error'); showError(registerError, "Passwords don't match."); return; }
 
