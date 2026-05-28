@@ -18,45 +18,21 @@ import {
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 // ── Redirect if already logged in ────────────────────────────────────────────
-onAuthStateChanged(auth, async (user) => {
+onAuthStateChanged(auth, (user) => {
   const authContainer = document.getElementById('auth-container');
   const appContainer = document.getElementById('app');
   const gridBg = document.getElementById('app-grid-bg');
   const glowBg = document.getElementById('app-glow-bg');
 
   if (user) {
-    // ✅ User is signed in.
-    
-    // Sync user data to shared 'users' collection in Firestore
-    try {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userDocRef);
-      let avatarColor = 'yellow';
-      if (userSnap.exists()) {
-        const data = userSnap.data();
-        avatarColor = data.avatarColor || 'yellow';
-      } else {
-        const colors = ['yellow', 'teal', 'red', 'purple', 'green'];
-        avatarColor = colors[Math.floor(Math.random() * colors.length)];
-      }
-
-      await setDoc(userDocRef, {
-        uid: user.uid,
-        displayName: user.displayName || user.email.split('@')[0],
-        email: user.email,
-        avatarColor: avatarColor,
-        lastActive: serverTimestamp()
-      }, { merge: true });
-    } catch (err) {
-      console.error("Error syncing user profile to Firestore:", err);
-    }
-
+    // ✅ User is signed in — switch the UI immediately so there is no delay.
     if (authContainer) authContainer.style.display = 'none';
     if (gridBg) gridBg.style.display = 'block';
     if (glowBg) glowBg.style.display = 'block';
+
     if (appContainer) {
       appContainer.style.display = 'flex';
-      
+
       // Update profile button initials
       const profileBtn = document.getElementById('user-profile-btn');
       if (profileBtn) {
@@ -64,25 +40,48 @@ onAuthStateChanged(auth, async (user) => {
           ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
           : (user.email ? user.email.slice(0, 2).toUpperCase() : 'AM');
         profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
-        
-        // Add sign out listener if it doesn't already have one
+
         if (!profileBtn.dataset.hasSignoutListener) {
           profileBtn.dataset.hasSignoutListener = 'true';
           profileBtn.addEventListener('click', () => {
             if (confirm('Are you sure you want to sign out?')) {
-              signOut(auth).then(() => {
-                location.reload();
-              });
+              signOut(auth).then(() => location.reload());
             }
           });
         }
       }
-      
+
       // Dynamically load the chat application logic
       import('./app.js');
     }
+
+    // ── Sync user profile to shared Firestore 'users' collection (background) ──
+    // Runs AFTER the app is shown so it never blocks navigation.
+    (async () => {
+      try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userDocRef);
+        let avatarColor = 'yellow';
+        if (userSnap.exists()) {
+          avatarColor = userSnap.data().avatarColor || 'yellow';
+        } else {
+          const colors = ['yellow', 'teal', 'red', 'purple', 'green'];
+          avatarColor = colors[Math.floor(Math.random() * colors.length)];
+        }
+        await setDoc(userDocRef, {
+          uid: user.uid,
+          displayName: user.displayName || user.email.split('@')[0],
+          email: user.email,
+          avatarColor,
+          lastActive: serverTimestamp(),
+        }, { merge: true });
+      } catch (err) {
+        console.warn('Firestore user sync failed (non-critical):', err);
+      }
+    })();
+
   } else {
-    // ❌ User is signed out.
+    // ❌ User is signed out — show auth, hide app.
     if (authContainer) authContainer.style.display = 'flex';
     if (appContainer) appContainer.style.display = 'none';
     if (gridBg) gridBg.style.display = 'none';
@@ -260,8 +259,8 @@ registerForm.addEventListener('submit', async (e) => {
   try {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(user, { displayName: name });
-    // Force a reload so onAuthStateChanged re-runs with the populated displayName
-    location.reload();
+    // onAuthStateChanged fires automatically and redirects to the app — no reload needed.
+    // Nothing to do here; the listener handles everything.
   } catch (err) {
     console.error("Register error:", err);
     showError(registerError, friendlyError(err));

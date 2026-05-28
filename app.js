@@ -1,6 +1,23 @@
 
 // Calyx Chat Application Logic
-import { auth } from './firebase.js';
+import { auth, db } from './firebase.js';
+import {
+  collection,
+  getDocs,
+  doc,
+  setDoc,
+  getDoc,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  serverTimestamp,
+} from 'firebase/firestore';
+
+// Real-time listener references (stored so they can be unsubscribed)
+let conversationsListener = null;
+let messagesListener = null;
 
 function getCurrentUserName() {
   const user = auth.currentUser;
@@ -27,17 +44,15 @@ const state = {
       id: 'calyx-bot',
       type: 'dm',
       name: 'Calyx AI Bot',
-      avatarColor: 'yellow',
       lastMessage: 'Welcome to Calyx Chat! How can I help you today?',
-      lastMessageTime: '12:45 PM',
-      unreadCount: 1,
+      avatarColor: 'yellow',
       status: 'online',
       history: [
         {
           id: 'cb1',
           senderName: 'Calyx AI Bot',
           isMe: false,
-          text: 'Hey there! I am the Calyx Assistant. I have been styled with the premium Calyx Sigma design language, complete with gold and teal glows.',
+          text: 'Hey there! I am the Calyx Assistant. I am developed by Arnabh aka ZenSensi',
           time: '12:44 PM'
         },
         {
@@ -103,6 +118,9 @@ function initApp() {
   renderHomeFeed();
   renderChatActiveWindow(state.activeChatId);
   updateTheme();
+
+  // Start listening for real-time Firestore conversations
+  setupRealtimeListeners();
 }
 
 function setupEventListeners() {
@@ -231,7 +249,7 @@ function setupEventListeners() {
     newChatModal.style.display = 'none';
     newChatForm.reset();
     newChatForm.querySelectorAll('.type-option').forEach((opt, idx) => {
-          opt.classList.toggle('active', idx === 0);
+      opt.classList.toggle('active', idx === 0);
     });
     newChatForm.querySelectorAll('.avatar-color-option').forEach((opt, idx) => {
       opt.classList.toggle('active', idx === 0);
@@ -981,10 +999,10 @@ async function startDirectMessage(targetUser) {
   // Close modal and reset search dropdown
   const newChatModal = document.getElementById('new-chat-modal');
   if (newChatModal) newChatModal.style.display = 'none';
-  
+
   const newChatForm = document.getElementById('new-chat-form');
   if (newChatForm) newChatForm.reset();
-  
+
   const searchDropdown = document.getElementById('search-results-dropdown');
   if (searchDropdown) searchDropdown.style.display = 'none';
 
