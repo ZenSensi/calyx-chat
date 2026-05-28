@@ -172,7 +172,8 @@ function showToast(msg, duration = 3500) {
   showToast._timer = setTimeout(() => { toast.hidden = true; }, duration);
 }
 
-function friendlyError(code) {
+function friendlyError(error) {
+  const code = error?.code || error;
   const map = {
     'auth/user-not-found': 'No account found with that email.',
     'auth/wrong-password': 'Incorrect password. Please try again.',
@@ -183,8 +184,10 @@ function friendlyError(code) {
     'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
     'auth/network-request-failed': 'Network error. Check your connection.',
     'auth/invalid-credential': 'Incorrect email or password.',
+    'auth/operation-not-allowed': 'Sign-in method is disabled. Please enable Email/Password and Google sign-in in your Firebase Console under Authentication -> Sign-in method.',
+    'auth/invalid-api-key': 'Invalid Firebase API Key. Please verify your environment variables.',
   };
-  return map[code] || 'Something went wrong. Please try again.';
+  return map[code] || error?.message || 'Something went wrong. Please try again.';
 }
 
 // ── Email Sign In ─────────────────────────────────────────────────────────────
@@ -203,7 +206,8 @@ signinForm.addEventListener('submit', async (e) => {
     await signInWithEmailAndPassword(auth, email, password);
     // onAuthStateChanged will redirect
   } catch (err) {
-    showError(signinError, friendlyError(err.code));
+    console.error("Sign in error:", err);
+    showError(signinError, friendlyError(err));
     setLoading(btnSignin, false);
   }
 });
@@ -229,7 +233,8 @@ registerForm.addEventListener('submit', async (e) => {
     await updateProfile(user, { displayName: name });
     // onAuthStateChanged will redirect
   } catch (err) {
-    showError(registerError, friendlyError(err.code));
+    console.error("Register error:", err);
+    showError(registerError, friendlyError(err));
     setLoading(btnRegister, false);
   }
 });
@@ -241,8 +246,9 @@ async function handleGoogle() {
     await signInWithPopup(auth, provider);
     // onAuthStateChanged will redirect
   } catch (err) {
+    console.error("Google login error:", err);
     if (err.code !== 'auth/popup-closed-by-user') {
-      showToast(friendlyError(err.code));
+      showToast(friendlyError(err));
     }
   }
 }
@@ -263,6 +269,7 @@ btnForgot.addEventListener('click', async () => {
     await sendPasswordResetEmail(auth, email);
     showToast(`Password reset email sent to ${email}`);
   } catch (err) {
-    showError(signinError, friendlyError(err.code));
+    console.error("Password reset error:", err);
+    showError(signinError, friendlyError(err));
   }
 });
