@@ -4,6 +4,7 @@
 
 import {
   auth,
+  db,
   provider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -14,8 +15,10 @@ import {
   signOut,
 } from './firebase.js';
 
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+
 // ── Redirect if already logged in ────────────────────────────────────────────
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   const authContainer = document.getElementById('auth-container');
   const appContainer = document.getElementById('app');
   const gridBg = document.getElementById('app-grid-bg');
@@ -23,6 +26,31 @@ onAuthStateChanged(auth, (user) => {
 
   if (user) {
     // ✅ User is signed in.
+    
+    // Sync user data to shared 'users' collection in Firestore
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userDocRef);
+      let avatarColor = 'yellow';
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        avatarColor = data.avatarColor || 'yellow';
+      } else {
+        const colors = ['yellow', 'teal', 'red', 'purple', 'green'];
+        avatarColor = colors[Math.floor(Math.random() * colors.length)];
+      }
+
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        displayName: user.displayName || user.email.split('@')[0],
+        email: user.email,
+        avatarColor: avatarColor,
+        lastActive: serverTimestamp()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Error syncing user profile to Firestore:", err);
+    }
+
     if (authContainer) authContainer.style.display = 'none';
     if (gridBg) gridBg.style.display = 'block';
     if (glowBg) glowBg.style.display = 'block';
@@ -61,6 +89,7 @@ onAuthStateChanged(auth, (user) => {
     if (glowBg) glowBg.style.display = 'none';
   }
 });
+
 
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────

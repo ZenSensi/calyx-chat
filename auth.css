@@ -24,7 +24,7 @@
   --radius-sm:   8px;
   --transition:  0.2s ease;
 
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   font-size: 15px;
   color: var(--text-1);
   background: var(--bg);
@@ -178,7 +178,7 @@ body { min-height: 100dvh; overflow-x: hidden; }
   padding: 9px 16px;
   background: transparent; border: none;
   border-radius: 7px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', 'Inter', sans-serif;
   font-size: 14px; font-weight: 500;
   color: var(--text-2);
   cursor: pointer;
@@ -214,7 +214,7 @@ body { min-height: 100dvh; overflow-x: hidden; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-1);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', 'Inter', sans-serif;
   font-size: 14px; font-weight: 500;
   cursor: pointer;
   transition: background var(--transition), border-color var(--transition), transform 0.15s;
@@ -267,7 +267,7 @@ body { min-height: 100dvh; overflow-x: hidden; }
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-1);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', 'Inter', sans-serif;
   font-size: 14px;
   transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
   outline: none;
@@ -320,7 +320,7 @@ body { min-height: 100dvh; overflow-x: hidden; }
   background: linear-gradient(135deg, var(--yellow), var(--yellow-dim));
   border: none; border-radius: var(--radius-sm);
   color: #0c0a03;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', 'Inter', sans-serif;
   font-size: 14px; font-weight: 700;
   cursor: pointer;
   transition: opacity var(--transition), transform 0.15s, box-shadow var(--transition);

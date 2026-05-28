@@ -1,3 +1,4 @@
+
 // Calyx Chat Application Logic
 import { auth } from './firebase.js';
 
@@ -15,40 +16,13 @@ function getCurrentUserInitials() {
 
 // Initial Application State
 const state = {
-  activeChatId: 'figma', // Default chat
+  activeChatId: 'calyx-bot', // Default chat
   userStatus: 'active',  // active, away, dnd, offline
   isDarkMode: true,      // Default dark mode
   showUnreadOnly: false,
   collapsedSidebar: false,
   collapsedUtility: false,
   chats: {
-    figma: {
-      id: 'figma',
-      type: 'app',
-      name: 'Figma',
-      avatarColor: 'red',
-      lastMessage: 'Message deleted',
-      lastMessageTime: '10 Dec',
-      unreadCount: 0,
-      status: 'online',
-      history: [
-        {
-          id: 'f1',
-          senderName: 'Figma',
-          isMe: false,
-          text: 'Figma integration activated. Notifications will appear here.',
-          time: '9 Dec, 10:15 AM',
-        },
-        {
-          id: 'f2',
-          senderName: 'Figma',
-          isMe: false,
-          text: 'Message deleted',
-          time: '10 Dec, 3:08 PM',
-          isDeleted: true
-        }
-      ]
-    },
     'calyx-bot': {
       id: 'calyx-bot',
       type: 'dm',
@@ -155,7 +129,7 @@ function setupEventListeners() {
     utilityToggle.addEventListener('click', () => {
       state.collapsedUtility = !state.collapsedUtility;
       utilitySidebar.classList.toggle('collapsed', state.collapsedUtility);
-      
+
       const icon = utilityToggle.querySelector('i');
       if (icon) {
         icon.setAttribute('data-lucide', state.collapsedUtility ? 'chevron-left' : 'chevron-right');
@@ -257,11 +231,13 @@ function setupEventListeners() {
     newChatModal.style.display = 'none';
     newChatForm.reset();
     newChatForm.querySelectorAll('.type-option').forEach((opt, idx) => {
-      opt.classList.toggle('active', idx === 0);
+          opt.classList.toggle('active', idx === 0);
     });
     newChatForm.querySelectorAll('.avatar-color-option').forEach((opt, idx) => {
       opt.classList.toggle('active', idx === 0);
     });
+    const searchDropdown = document.getElementById('search-results-dropdown');
+    if (searchDropdown) searchDropdown.style.display = 'none';
   };
 
   if (modalClose) modalClose.addEventListener('click', closeModal);
@@ -278,9 +254,11 @@ function setupEventListeners() {
       // Update name input placeholder
       const nameInput = document.getElementById('new-chat-name');
       const labelName = document.getElementById('label-chat-name');
+      const searchDropdown = document.getElementById('search-results-dropdown');
       if (radio.value === 'space') {
         nameInput.placeholder = 'e.g. Design Sync, Marketing Campaign...';
         labelName.textContent = 'Space Name';
+        if (searchDropdown) searchDropdown.style.display = 'none';
       } else {
         nameInput.placeholder = 'e.g. John Doe...';
         labelName.textContent = 'Contact Name';
@@ -296,8 +274,52 @@ function setupEventListeners() {
     });
   });
 
-  // Modal Submit
-  newChatForm.addEventListener('submit', (e) => {
+  // User directory search for DM type
+  const nameInput = document.getElementById('new-chat-name');
+  const searchDropdown = document.getElementById('search-results-dropdown');
+  if (nameInput && searchDropdown) {
+    nameInput.addEventListener('input', async () => {
+      const queryVal = nameInput.value.trim().toLowerCase();
+      const typeRadio = newChatForm.querySelector('input[name="chat-type"]:checked');
+      const type = typeRadio ? typeRadio.value : 'dm';
+
+      if (type !== 'dm' || queryVal.length < 1) {
+        searchDropdown.style.display = 'none';
+        return;
+      }
+
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const matches = [];
+        const myUid = auth.currentUser?.uid;
+
+        usersSnap.forEach(docSnap => {
+          const u = docSnap.data();
+          if (u.uid === myUid) return;
+
+          const nameMatch = u.displayName?.toLowerCase().includes(queryVal);
+          const emailMatch = u.email?.toLowerCase().includes(queryVal);
+
+          if (nameMatch || emailMatch) {
+            matches.push(u);
+          }
+        });
+
+        renderSearchResults(matches);
+      } catch (err) {
+        console.error("Error querying users collection:", err);
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!nameInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+        searchDropdown.style.display = 'none';
+      }
+    });
+  }
+
+  // Modal Submit (only handles space creation, DMs are created on selection)
+  newChatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('new-chat-name').value.trim();
     const type = newChatForm.querySelector('input[name="chat-type"]:checked').value;
@@ -305,35 +327,40 @@ function setupEventListeners() {
 
     if (!name) return;
 
-    // Create Chat object
-    const newId = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now().toString().slice(-4);
-    
-    state.chats[newId] = {
-      id: newId,
-      type: type,
-      name: name,
-      avatarColor: color,
-      lastMessage: type === 'space' ? 'Space created' : 'Conversation started',
-      lastMessageTime: 'Now',
-      unreadCount: 0,
-      status: 'offline',
-      history: [
-        {
-          id: 'welcome-' + newId,
-          senderName: type === 'space' ? 'System' : name,
-          isMe: false,
-          text: type === 'space' 
-            ? `Welcome to the new "${name}" Space! Start collaborating with your team.`
-            : `Hello! You started a direct message with ${name}.`
-        }
-      ]
-    };
+    if (type === 'space') {
+      const myUser = auth.currentUser;
+      if (!myUser) return;
 
-    closeModal();
-    renderSidebar();
-    renderHomeFeed();
-    switchActiveChat(newId);
-    showToast(`Created ${type === 'space' ? 'space' : 'DM'} "${name}"`);
+      const spaceId = 'space_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
+      try {
+        const docRef = doc(db, 'chat_conversations', spaceId);
+        await setDoc(docRef, {
+          id: spaceId,
+          type: 'space',
+          participants: [myUser.uid],
+          participantDetails: {
+            [myUser.uid]: {
+              displayName: myUser.displayName || myUser.email.split('@')[0],
+              email: myUser.email,
+              avatarColor: 'yellow'
+            }
+          },
+          name: name,
+          avatarColor: color,
+          lastMessage: 'Space created',
+          lastMessageTime: serverTimestamp(),
+          createdTime: serverTimestamp()
+        });
+
+        closeModal();
+        switchActiveChat(spaceId);
+        showToast(`Created space "${name}"`);
+      } catch (err) {
+        console.error("Error creating space:", err);
+        showToast("Failed to create space.");
+      }
+    }
   });
 
   // Quick close expand chat, exit placeholder action, etc.
@@ -357,7 +384,6 @@ function setupEventListeners() {
 function renderSidebar() {
   const dmsList = document.getElementById('dms-list');
   const spacesList = document.getElementById('spaces-list');
-  
   if (!dmsList || !spacesList) return;
 
   dmsList.innerHTML = '';
@@ -372,7 +398,7 @@ function renderSidebar() {
     const li = document.createElement('li');
     li.className = `section-item ${state.activeChatId === chat.id ? 'active' : ''}`;
     li.setAttribute('data-chat-id', chat.id);
-    
+
     // Status dot logic for DMs
     let statusDotHtml = '';
     if (chat.type === 'dm') {
@@ -380,8 +406,8 @@ function renderSidebar() {
     }
 
     // Space icon logic vs contact icon
-    const iconHtml = chat.type === 'space' 
-      ? `<i data-lucide="hash"></i>` 
+    const iconHtml = chat.type === 'space'
+      ? `<i data-lucide="hash"></i>`
       : `<i data-lucide="user"></i>`;
 
     li.innerHTML = `
@@ -404,17 +430,6 @@ function renderSidebar() {
     }
   });
 
-  // App active highlight checking
-  const appItems = document.querySelectorAll('.app-item');
-  appItems.forEach(item => {
-    const appId = item.getAttribute('data-chat-id');
-    item.classList.toggle('active', state.activeChatId === appId);
-    // Remove existing event listeners to prevent duplicate triggers
-    const newItem = item.cloneNode(true);
-    item.parentNode.replaceChild(newItem, item);
-    newItem.addEventListener('click', () => switchActiveChat(appId));
-  });
-
   // Toggle empty promo screens
   document.getElementById('dms-empty-promo').style.display = dmsCount === 0 ? 'block' : 'none';
   document.getElementById('spaces-empty-promo').style.display = spacesCount === 0 ? 'block' : 'none';
@@ -433,7 +448,7 @@ function renderHomeFeed(searchQuery = '') {
   const filteredChats = Object.values(state.chats).filter(chat => {
     // Filter by Unread Toggle
     if (state.showUnreadOnly && chat.unreadCount === 0) return false;
-    
+
     // Filter by Search Query
     if (query) {
       const matchName = chat.name.toLowerCase().includes(query);
@@ -458,25 +473,12 @@ function renderHomeFeed(searchQuery = '') {
   filteredChats.forEach(chat => {
     const item = document.createElement('div');
     item.className = `feed-item ${chat.unreadCount > 0 ? 'unread' : ''} ${state.activeChatId === chat.id ? 'active' : ''}`;
-    
+
     // Get Avatar Initials
     const initials = chat.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
     // App specific avatar template
     let avatarContent = `<div class="feed-avatar ${chat.avatarColor}">${initials}</div>`;
-    if (chat.type === 'app' && chat.id === 'figma') {
-      avatarContent = `
-        <div class="feed-avatar figma-bg" style="border-radius:50%; display:flex; justify-content:center; align-items:center;">
-          <svg width="16" height="24" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2 3C2 4.10457 2.89543 5 4 5C4 3.89543 3.10457 3 2 3Z" fill="#F24E1E"/>
-            <path d="M2 3C2 1.89543 2.89543 1 4 1V5C2.89543 5 2 4.10457 2 3Z" fill="#FF7262"/>
-            <path d="M4 1C5.10457 1 6 1.89543 6 3C6 4.10457 5.10457 5 4 5V1Z" fill="#A259FF"/>
-            <path d="M6 7C6 5.89543 5.10457 5 4 5V9C5.10457 9 6 8.10457 6 7Z" fill="#1ABCFE"/>
-            <path d="M2 7C2 5.89543 2.89543 5 4 5V9C2.89543 9 2 8.10457 2 7Z" fill="#0ACF83"/>
-          </svg>
-        </div>
-      `;
-    }
 
     item.innerHTML = `
       <div class="feed-avatar-wrap">
@@ -514,12 +516,9 @@ function renderChatActiveWindow(chatId) {
 
   // Render Header Details
   document.getElementById('active-chat-title').textContent = chat.name;
-  
+
   const statusEl = document.getElementById('active-chat-status');
-  if (chat.type === 'app') {
-    statusEl.textContent = 'App • Figma Live Sync';
-    document.getElementById('active-chat-badge').style.display = 'inline-block';
-  } else if (chat.type === 'space') {
+  if (chat.type === 'space') {
     statusEl.textContent = 'Space • Collaborators sync active';
     document.getElementById('active-chat-badge').style.display = 'none';
   } else {
@@ -530,46 +529,18 @@ function renderChatActiveWindow(chatId) {
   // Active Chat Avatar
   const chatAvatar = document.getElementById('active-chat-avatar');
   const initials = chat.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-  
-  if (chat.type === 'app' && chat.id === 'figma') {
-    chatAvatar.innerHTML = `
-      <div class="message-avatar figma-bg" style="width:36px; height:36px; display:flex; justify-content:center; align-items:center;">
-        <svg width="14" height="20" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M2 3C2 4.10457 2.89543 5 4 5C4 3.89543 3.10457 3 2 3Z" fill="#F24E1E"/>
-          <path d="M2 3C2 1.89543 2.89543 1 4 1V5C2.89543 5 2 4.10457 2 3Z" fill="#FF7262"/>
-          <path d="M4 1C5.10457 1 6 1.89543 6 3C6 4.10457 5.10457 5 4 5V1Z" fill="#A259FF"/>
-          <path d="M6 7C6 5.89543 5.10457 5 4 5V9C5.10457 9 6 8.10457 6 7Z" fill="#1ABCFE"/>
-          <path d="M2 7C2 5.89543 2.89543 5 4 5V9C2.89543 9 2 8.10457 2 7Z" fill="#0ACF83"/>
-        </svg>
-      </div>
-    `;
-  } else {
-    chatAvatar.innerHTML = `<div class="message-avatar ${chat.avatarColor}" style="width:36px; height:36px; font-size:13px">${initials}</div>`;
-  }
+
+  chatAvatar.innerHTML = `<div class="message-avatar ${chat.avatarColor}" style="width:36px; height:36px; font-size:13px">${initials}</div>`;
 
   // Welcome Banner details
   document.getElementById('banner-title').textContent = chat.name;
   const bannerAvatar = document.getElementById('banner-avatar-icon');
-  
-  if (chat.type === 'app' && chat.id === 'figma') {
-    bannerAvatar.className = 'banner-avatar figma-bg';
-    bannerAvatar.innerHTML = `
-      <svg width="20" height="30" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2 3C2 4.10457 2.89543 5 4 5C4 3.89543 3.10457 3 2 3Z" fill="#F24E1E"/>
-        <path d="M2 3C2 1.89543 2.89543 1 4 1V5C2.89543 5 2 4.10457 2 3Z" fill="#FF7262"/>
-        <path d="M4 1C5.10457 1 6 1.89543 6 3C6 4.10457 5.10457 5 4 5V1Z" fill="#A259FF"/>
-        <path d="M6 7C6 5.89543 5.10457 5 4 5V9C5.10457 9 6 8.10457 6 7Z" fill="#1ABCFE"/>
-        <path d="M2 7C2 5.89543 2.89543 5 4 5V9C2.89543 9 2 8.10457 2 7Z" fill="#0ACF83"/>
-      </svg>
-    `;
-    document.getElementById('banner-subtitle').textContent = 'Figma created this integration chat on Wednesday, 10 Dec';
-  } else {
-    bannerAvatar.className = `banner-avatar ${chat.avatarColor}`;
-    bannerAvatar.innerHTML = initials;
-    document.getElementById('banner-subtitle').textContent = chat.type === 'space' 
-      ? `This is the start of the ${chat.name} Space. Created by Sarah.`
-      : `This is the start of your secure direct message with ${chat.name}.`;
-  }
+
+  bannerAvatar.className = `banner-avatar ${chat.avatarColor}`;
+  bannerAvatar.innerHTML = initials;
+  document.getElementById('banner-subtitle').textContent = chat.type === 'space'
+    ? `This is the start of the ${chat.name} Space. Created by Sarah.`
+    : `This is the start of your secure direct message with ${chat.name}.`;
 
   // Message history rendering
   const wrapper = document.getElementById('messages-list-wrapper');
@@ -577,32 +548,17 @@ function renderChatActiveWindow(chatId) {
 
   chat.history.forEach(msg => {
     const item = document.createElement('div');
-    
+
     if (msg.isDeleted) {
       item.className = 'message-item system';
       item.innerHTML = `<div class="message-deleted">Message deleted by a member of this conversation <span style="font-size:10px; margin-left:8px; font-style:normal; color:var(--text-secondary);">${msg.time.split(',')[1] || msg.time}</span></div>`;
     } else {
       item.className = `message-item ${msg.isMe ? 'sent' : ''}`;
-      
+
       const msgInitials = msg.isMe ? getCurrentUserInitials() : msg.senderName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const msgAvatarColor = msg.isMe ? 'yellow' : chat.avatarColor;
-      
-      let msgAvatarHtml = '';
-      if (!msg.isMe && chat.type === 'app' && chat.id === 'figma') {
-        msgAvatarHtml = `
-          <div class="message-avatar figma-bg" style="width:32px; height:32px; display:flex; justify-content:center; align-items:center;">
-            <svg width="12" height="18" viewBox="0 0 8 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2 3C2 4.10457 2.89543 5 4 5C4 3.89543 3.10457 3 2 3Z" fill="#F24E1E"/>
-              <path d="M2 3C2 1.89543 2.89543 1 4 1V5C2.89543 5 2 4.10457 2 3Z" fill="#FF7262"/>
-              <path d="M4 1C5.10457 1 6 1.89543 6 3C6 4.10457 5.10457 5 4 5V1Z" fill="#A259FF"/>
-              <path d="M6 7C6 5.89543 5.10457 5 4 5V9C5.10457 9 6 8.10457 6 7Z" fill="#1ABCFE"/>
-              <path d="M2 7C2 5.89543 2.89543 5 4 5V9C2.89543 9 2 8.10457 2 7Z" fill="#0ACF83"/>
-            </svg>
-          </div>
-        `;
-      } else {
-        msgAvatarHtml = `<div class="message-avatar ${msgAvatarColor}">${msgInitials}</div>`;
-      }
+
+      let msgAvatarHtml = `<div class="message-avatar ${msgAvatarColor}">${msgInitials}</div>`;
 
       // Rich layout card logic (Calyx Meet updates)
       let cardHtml = '';
@@ -635,7 +591,7 @@ function renderChatActiveWindow(chatId) {
         </div>
       `;
     }
-    
+
     wrapper.appendChild(item);
   });
 
@@ -658,15 +614,26 @@ function renderChatActiveWindow(chatId) {
 // Handle message switching
 function switchActiveChat(chatId) {
   state.activeChatId = chatId;
-  
+
   // Clear unreads
-  if (state.chats[chatId].unreadCount > 0) {
+  if (state.chats[chatId] && state.chats[chatId].unreadCount > 0) {
     state.chats[chatId].unreadCount = 0;
+  }
+
+  // Clear previous message listener
+  if (messagesListener) {
+    messagesListener();
+    messagesListener = null;
   }
 
   renderSidebar();
   renderHomeFeed();
   renderChatActiveWindow(chatId);
+
+  // Setup real-time messages listener if it's a Firestore conversation
+  if (chatId !== 'calyx-bot') {
+    setupMessagesListener(chatId);
+  }
 }
 
 // Send Message Handler
@@ -675,32 +642,43 @@ function handleSendMessage() {
   const text = textarea.value.trim();
   if (!text) return;
 
-  const activeChat = state.chats[state.activeChatId];
-  const now = new Date();
-  const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const activeChatId = state.activeChatId;
+  const activeChat = state.chats[activeChatId];
+  if (!activeChat) return;
 
-  // Add user message to history
-  activeChat.history.push({
-    id: 'msg-' + Date.now(),
-    senderName: getCurrentUserName(),
-    isMe: true,
-    text: text,
-    time: timeString
-  });
+  if (activeChatId === 'calyx-bot') {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // Update last message preview
-  activeChat.lastMessage = `You: ${text}`;
-  activeChat.lastMessageTime = timeString;
+    // Add user message to history
+    activeChat.history.push({
+      id: 'msg-' + Date.now(),
+      senderName: getCurrentUserName(),
+      isMe: true,
+      text: text,
+      time: timeString
+    });
 
-  // Render updates
-  renderHomeFeed();
-  renderChatActiveWindow(state.activeChatId);
+    // Update last message preview
+    activeChat.lastMessage = `You: ${text}`;
+    activeChat.lastMessageTime = timeString;
 
-  // Trigger simulated response
-  const activeChatId = state.activeChatId; // Cache id in closure
-  setTimeout(() => {
-    simulateBotResponse(activeChatId, text);
-  }, 1000);
+    // Render updates
+    renderHomeFeed();
+    renderChatActiveWindow(activeChatId);
+
+    // Trigger simulated response
+    setTimeout(() => {
+      simulateBotResponse(activeChatId, text);
+    }, 1000);
+  } else {
+    // Send to Firestore
+    sendMessageToFirestore(activeChatId, text);
+  }
+
+  textarea.value = '';
+  textarea.style.height = 'auto';
+  document.getElementById('btn-send-message').disabled = true;
 }
 
 // Bot responses simulation
@@ -717,33 +695,15 @@ function simulateBotResponse(chatId, userText) {
 
   if (chatId === 'calyx-bot') {
     if (normText.includes('hello') || normText.includes('hi') || normText.includes('hey')) {
-      replyText = `Hello ${getCurrentUserName()}! Great to chat. I am fully customized with the yellow and teal Calyx Sigma styling. Try asking me about 'colors', 'features', or 'meetings'!`;
+      replyText = `Hello ${getCurrentUserName()}! Great to chat. I am fully customized with the yellow and teal Calyx Sigma styling. Try asking me about 'colors' or 'features'!`;
     } else if (normText.includes('color') || normText.includes('yellow') || normText.includes('blue')) {
       replyText = "Per your configuration, the primary theme color is now a vibrant premium gold/yellow (#fbbf24) combined with Calyx's classic cyan/teal (#00d2ff) accents. The standard blues have been completely replaced!";
     } else if (normText.includes('feature') || normText.includes('chat') || normText.includes('workspace')) {
       replyText = "This Calyx Chat application features a fully responsive 4-column layout: collapsible left sidebar, center home chat feed, active message window, and far-right Google add-on utilities.";
     } else if (normText.includes('meeting') || normText.includes('meet')) {
-      replyText = "You can schedule a video meeting directly through the integration panel! Would you like me to generate a new Calyx Meet room link?";
-      replyCard = {
-        title: 'Calyx Meet Integration',
-        desc: 'Generate secure WebRTC meeting rooms with glassmorphic lobbies and real-time audio visualization.',
-        icon: 'video',
-        btnText: 'Start New Meet'
-      };
+      replyText = "Calyx Chat focuses purely on real-time secure messaging and team spaces. For video conferences, you can use our companion product, Calyx Meet!";
     } else {
-      replyText = `I hear you! You said "${userText}". As an AI built into the Calyx ecosystem, I am here to help you interface with Figma designs, support channels, and Meet calendars.`;
-    }
-  } else if (chatId === 'figma') {
-    if (normText.includes('design') || normText.includes('layout') || normText.includes('wireframe')) {
-      replyText = "I found the matching Calyx Sigma dashboard layout! Let me trigger a preview sync card for you.";
-      replyCard = {
-        title: 'Calyx Sigma Mockup v2',
-        desc: 'Asset sync completed. 3 active component groups imported. High-fidelity glassmorphism frames available.',
-        icon: 'figma',
-        btnText: 'Open in Figma'
-      };
-    } else {
-      replyText = `Figma Webhook received: User triggered an interaction with payload "${userText}". The current design system tokens (Yellow Accent, Teal Glow, Outfit Font) are synced successfully.`;
+      replyText = `I hear you! You said "${userText}". As an AI built into Calyx Chat, I am here to help you get the most out of your collaborative messaging.`;
     }
   } else {
     // DM or Space reply
@@ -775,6 +735,7 @@ function simulateBotResponse(chatId, userText) {
   }
 }
 
+
 // User status selection
 function updateUserStatus(status) {
   state.userStatus = status;
@@ -785,7 +746,7 @@ function updateUserStatus(status) {
   const text = statusPill.querySelector('.status-text');
 
   dot.className = `status-dot ${status}`;
-  
+
   let label = 'Active';
   if (status === 'away') label = 'Away';
   else if (status === 'dnd') label = 'Do not disturb';
@@ -837,3 +798,215 @@ function showToast(message) {
     toast.style.display = 'none';
   }, 2500);
 }
+
+// Setup Real-Time Listeners for Conversations
+function setupRealtimeListeners() {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const conversationsQuery = query(
+    collection(db, 'chat_conversations'),
+    where('participants', 'array-contains', user.uid)
+  );
+
+  conversationsListener = onSnapshot(conversationsQuery, (snapshot) => {
+    const newChats = {
+      'calyx-bot': state.chats['calyx-bot']
+    };
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const isDM = data.type === 'dm';
+      let chatName = data.name;
+      let avatarColor = data.avatarColor || 'yellow';
+
+      if (isDM) {
+        const otherUid = data.participants.find(p => p !== user.uid);
+        const otherDetails = data.participantDetails?.[otherUid] || {};
+        chatName = otherDetails.displayName || otherDetails.email?.split('@')[0] || 'Unknown User';
+        avatarColor = otherDetails.avatarColor || 'yellow';
+      }
+
+      let lastMsgTime = 'Now';
+      if (data.lastMessageTime) {
+        const date = data.lastMessageTime.toDate ? data.lastMessageTime.toDate() : new Date(data.lastMessageTime);
+        lastMsgTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      newChats[docSnap.id] = {
+        id: docSnap.id,
+        type: data.type,
+        name: chatName,
+        avatarColor: avatarColor,
+        lastMessage: data.lastMessage || (data.type === 'space' ? 'Space created' : 'Conversation started'),
+        lastMessageTime: lastMsgTime,
+        unreadCount: 0,
+        status: isDM ? 'online' : 'offline',
+        history: state.chats[docSnap.id]?.history || []
+      };
+    });
+
+    state.chats = newChats;
+    renderSidebar();
+    renderHomeFeed();
+
+    if (state.activeChatId && state.chats[state.activeChatId]) {
+      renderChatActiveWindow(state.activeChatId);
+    }
+  }, (error) => {
+    console.error("Conversations listener error:", error);
+  });
+}
+
+// Setup Real-Time Messages Listener
+function setupMessagesListener(chatId) {
+  const messagesQuery = query(
+    collection(db, `chat_conversations/${chatId}/messages`),
+    orderBy('time', 'asc')
+  );
+
+  messagesListener = onSnapshot(messagesQuery, (snapshot) => {
+    const chat = state.chats[chatId];
+    if (!chat) return;
+
+    chat.history = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      let timeString = 'Now';
+      if (data.time) {
+        const date = data.time.toDate ? data.time.toDate() : new Date(data.time);
+        timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      chat.history.push({
+        id: docSnap.id,
+        senderName: data.senderName,
+        isMe: data.senderUid === auth.currentUser?.uid,
+        text: data.text,
+        time: timeString
+      });
+    });
+
+    if (state.activeChatId === chatId) {
+      renderChatActiveWindow(chatId);
+    }
+  }, (error) => {
+    console.error("Messages listener error:", error);
+  });
+}
+
+// Render User Directory Search Results
+function renderSearchResults(matches) {
+  const dropdown = document.getElementById('search-results-dropdown');
+  if (!dropdown) return;
+
+  dropdown.innerHTML = '';
+  if (matches.length === 0) {
+    dropdown.innerHTML = '<div style="padding: 10px; font-size:12px; color:var(--text-secondary); text-align:center;">No users found</div>';
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  matches.forEach(user => {
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+
+    const initials = user.displayName
+      ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+      : user.email.slice(0, 2).toUpperCase();
+
+    item.innerHTML = `
+      <div class="search-result-avatar ${user.avatarColor || 'teal'}">${initials}</div>
+      <div class="search-result-info">
+        <span class="search-result-name">${user.displayName}</span>
+        <span class="search-result-email">${user.email}</span>
+      </div>
+    `;
+
+    item.addEventListener('click', () => {
+      startDirectMessage(user);
+    });
+
+    dropdown.appendChild(item);
+  });
+
+  dropdown.style.display = 'block';
+}
+
+// Start a direct message with a user
+async function startDirectMessage(targetUser) {
+  const myUser = auth.currentUser;
+  if (!myUser) return;
+
+  const dmId = `dm_${[myUser.uid, targetUser.uid].sort().join('_')}`;
+
+  // Close modal and reset search dropdown
+  const newChatModal = document.getElementById('new-chat-modal');
+  if (newChatModal) newChatModal.style.display = 'none';
+  
+  const newChatForm = document.getElementById('new-chat-form');
+  if (newChatForm) newChatForm.reset();
+  
+  const searchDropdown = document.getElementById('search-results-dropdown');
+  if (searchDropdown) searchDropdown.style.display = 'none';
+
+  try {
+    const docRef = doc(db, 'chat_conversations', dmId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      await setDoc(docRef, {
+        id: dmId,
+        type: 'dm',
+        participants: [myUser.uid, targetUser.uid],
+        participantDetails: {
+          [myUser.uid]: {
+            displayName: myUser.displayName || myUser.email.split('@')[0],
+            email: myUser.email,
+            avatarColor: 'yellow'
+          },
+          [targetUser.uid]: {
+            displayName: targetUser.displayName,
+            email: targetUser.email,
+            avatarColor: targetUser.avatarColor || 'teal'
+          }
+        },
+        lastMessage: 'Conversation started',
+        lastMessageTime: serverTimestamp(),
+        createdTime: serverTimestamp()
+      });
+    }
+
+    switchActiveChat(dmId);
+    showToast(`Chat started with ${targetUser.displayName}`);
+  } catch (err) {
+    console.error("Error starting direct message:", err);
+    showToast("Failed to start chat.");
+  }
+}
+
+// Send Message to Firestore Database
+async function sendMessageToFirestore(conversationId, text) {
+  const myUser = auth.currentUser;
+  if (!myUser) return;
+
+  try {
+    const messagesColl = collection(db, `chat_conversations/${conversationId}/messages`);
+    await addDoc(messagesColl, {
+      senderUid: myUser.uid,
+      senderName: myUser.displayName || myUser.email.split('@')[0],
+      text: text,
+      time: serverTimestamp()
+    });
+
+    const convDocRef = doc(db, 'chat_conversations', conversationId);
+    await setDoc(convDocRef, {
+      lastMessage: `${myUser.displayName || myUser.email.split('@')[0]}: ${text}`,
+      lastMessageTime: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.error("Error sending message to Firestore:", err);
+    showToast("Failed to send message.");
+  }
+}
+

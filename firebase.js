@@ -18,6 +18,7 @@ import {
   updateProfile,
   sendPasswordResetEmail,
 } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
 // ── Calyx Meet Firebase project (shared across all Calyx products) ──────────
 const firebaseConfig = {
@@ -33,10 +34,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
 export {
   auth,
+  db,
   provider,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -46,3 +49,4 @@ export {
   updateProfile,
   sendPasswordResetEmail,
 };
+
