@@ -318,7 +318,7 @@ function setupEventListeners() {
     });
   }
 
-  // Modal Submit (only handles space creation, DMs are created on selection)
+  // Modal Submit (handles space creation and fallback DM resolution)
   newChatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('new-chat-name').value.trim();
@@ -359,6 +359,44 @@ function setupEventListeners() {
       } catch (err) {
         console.error("Error creating space:", err);
         showToast("Failed to create space.");
+      }
+    } else if (type === 'dm') {
+      const myUser = auth.currentUser;
+      if (!myUser) return;
+
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        let matchedUser = null;
+
+        usersSnap.forEach(docSnap => {
+          const u = docSnap.data();
+          if (u.uid === myUser.uid) return;
+          if (u.email?.toLowerCase() === name.toLowerCase() || u.displayName?.toLowerCase() === name.toLowerCase()) {
+            matchedUser = u;
+          }
+        });
+
+        if (matchedUser) {
+          startDirectMessage(matchedUser);
+        } else {
+          const matches = [];
+          usersSnap.forEach(docSnap => {
+            const u = docSnap.data();
+            if (u.uid === myUser.uid) return;
+            if (u.email?.toLowerCase().includes(name.toLowerCase()) || u.displayName?.toLowerCase().includes(name.toLowerCase())) {
+              matches.push(u);
+            }
+          });
+
+          if (matches.length === 1) {
+            startDirectMessage(matches[0]);
+          } else {
+            showToast("Please select a user from the dropdown search results.");
+          }
+        }
+      } catch (err) {
+        console.error("Error submitting DM:", err);
+        showToast("Error starting chat.");
       }
     }
   });
