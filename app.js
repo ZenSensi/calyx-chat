@@ -31,6 +31,63 @@ function getCurrentUserInitials() {
     : (user?.email ? user.email.slice(0, 2).toUpperCase() : 'ME');
 }
 
+function getStarredChatIds() {
+  const user = auth.currentUser;
+  if (!user) return [];
+  try {
+    const key = `starred_chats_${user.uid}`;
+    return JSON.parse(localStorage.getItem(key)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveStarredChatIds(starredIds) {
+  const user = auth.currentUser;
+  if (!user) return;
+  try {
+    const key = `starred_chats_${user.uid}`;
+    localStorage.setItem(key, JSON.stringify(starredIds));
+  } catch (e) {}
+}
+
+function isChatStarred(chatId) {
+  return getStarredChatIds().includes(chatId);
+}
+
+function toggleChatStarred(chatId) {
+  let starredIds = getStarredChatIds();
+  if (starredIds.includes(chatId)) {
+    starredIds = starredIds.filter(id => id !== chatId);
+  } else {
+    starredIds.push(chatId);
+  }
+  saveStarredChatIds(starredIds);
+  renderSidebar();
+  renderHomeFeed();
+  renderChatActiveWindow(chatId);
+}
+
+function hasMention(chat) {
+  if (!chat.history) return false;
+  const userName = getCurrentUserName().toLowerCase();
+  const userInitials = getCurrentUserInitials().toLowerCase();
+  
+  return chat.history.some(msg => {
+    if (msg.isMe) return false;
+    const text = (msg.text || '').toLowerCase();
+    
+    return text.includes('@') && (
+      text.includes('@' + userName) || 
+      text.includes('@' + userName.replace(/\s+/g, '')) || 
+      text.includes('@' + userInitials) ||
+      text.includes('@all') ||
+      text.includes('@everyone') ||
+      text.includes('@here')
+    );
+  });
+}
+
 // Initial Application State
 const state = {
   activeChatId: 'calyx-bot', // Default chat
@@ -39,6 +96,7 @@ const state = {
   showUnreadOnly: false,
   collapsedSidebar: false,
   collapsedUtility: false,
+  activeShortcut: 'home',
   chats: {
     'calyx-bot': {
       id: 'calyx-bot',
@@ -434,6 +492,48 @@ function setupEventListeners() {
       showToast("Fullscreen mode activated");
     });
   }
+
+  // Shortcut items click listeners
+  const shortcutHome = document.getElementById('shortcut-home');
+  const shortcutMentions = document.getElementById('shortcut-mentions');
+  const shortcutStarred = document.getElementById('shortcut-starred');
+
+  if (shortcutHome) {
+    shortcutHome.addEventListener('click', () => {
+      state.activeShortcut = 'home';
+      document.querySelector('.center-header h2').textContent = 'Home';
+      renderSidebar();
+      renderHomeFeed();
+    });
+  }
+
+  if (shortcutMentions) {
+    shortcutMentions.addEventListener('click', () => {
+      state.activeShortcut = 'mentions';
+      document.querySelector('.center-header h2').textContent = 'Mentions';
+      renderSidebar();
+      renderHomeFeed();
+    });
+  }
+
+  if (shortcutStarred) {
+    shortcutStarred.addEventListener('click', () => {
+      state.activeShortcut = 'starred';
+      document.querySelector('.center-header h2').textContent = 'Starred';
+      renderSidebar();
+      renderHomeFeed();
+    });
+  }
+
+  // Star Chat Button listener
+  const starChatBtn = document.getElementById('btn-star-chat');
+  if (starChatBtn) {
+    starChatBtn.addEventListener('click', () => {
+      if (state.activeChatId) {
+        toggleChatStarred(state.activeChatId);
+      }
+    });
+  }
 }
 
 // Render the Left Sidebar Lists
@@ -441,6 +541,15 @@ function renderSidebar() {
   const dmsList = document.getElementById('dms-list');
   const spacesList = document.getElementById('spaces-list');
   if (!dmsList || !spacesList) return;
+
+  // Sync shortcuts active state
+  const homeBtn = document.getElementById('shortcut-home');
+  const mentionsBtn = document.getElementById('shortcut-mentions');
+  const starredBtn = document.getElementById('shortcut-starred');
+
+  if (homeBtn) homeBtn.classList.toggle('active', state.activeShortcut === 'home');
+  if (mentionsBtn) mentionsBtn.classList.toggle('active', state.activeShortcut === 'mentions');
+  if (starredBtn) starredBtn.classList.toggle('active', state.activeShortcut === 'starred');
 
   dmsList.innerHTML = '';
   spacesList.innerHTML = '';
@@ -455,16 +564,12 @@ function renderSidebar() {
     li.className = `section-item ${state.activeChatId === chat.id ? 'active' : ''}`;
     li.setAttribute('data-chat-id', chat.id);
 
-    // Status dot logic for DMs
-    let statusDotHtml = '';
-    if (chat.type === 'dm') {
-      statusDotHtml = `<span class="status-dot ${chat.status}"></span>`;
-    }
-
     // Space icon logic vs contact icon
     const iconHtml = chat.type === 'space'
       ? `<i data-lucide="hash"></i>`
       : `<i data-lucide="user"></i>`;
+
+    const isStarred = isChatStarred(chat.id);
 
     li.innerHTML = `
       <div style="position: relative; display: flex; align-items: center;">
@@ -472,7 +577,10 @@ function renderSidebar() {
         ${chat.type === 'dm' ? `<span class="feed-status-dot ${chat.status}" style="bottom:-2px; right:-2px; width:7px; height:7px; border-width:1px;"></span>` : ''}
       </div>
       <span>${chat.name}</span>
-      ${chat.unreadCount > 0 ? `<span class="unread-badge" style="margin-left:auto">${chat.unreadCount}</span>` : ''}
+      <div style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
+        ${isStarred ? `<i data-lucide="star" style="width: 12px; height: 12px; fill: var(--primary-yellow); stroke: var(--primary-yellow); flex-shrink: 0;"></i>` : ''}
+        ${chat.unreadCount > 0 ? `<span class="unread-badge">${chat.unreadCount}</span>` : ''}
+      </div>
     `;
 
     li.addEventListener('click', () => switchActiveChat(chat.id));
@@ -502,6 +610,13 @@ function renderHomeFeed(searchQuery = '') {
   const query = searchQuery.toLowerCase();
 
   const filteredChats = Object.values(state.chats).filter(chat => {
+    // Filter by Active Shortcut View
+    if (state.activeShortcut === 'mentions') {
+      if (!hasMention(chat)) return false;
+    } else if (state.activeShortcut === 'starred') {
+      if (!isChatStarred(chat.id)) return false;
+    }
+
     // Filter by Unread Toggle
     if (state.showUnreadOnly && chat.unreadCount === 0) return false;
 
@@ -516,10 +631,20 @@ function renderHomeFeed(searchQuery = '') {
   });
 
   if (filteredChats.length === 0) {
+    let emptyIcon = 'message-square-dashed';
+    let emptyMsg = 'No conversations found';
+    if (state.activeShortcut === 'mentions') {
+      emptyIcon = 'at-sign';
+      emptyMsg = 'No mentions of you found in conversations';
+    } else if (state.activeShortcut === 'starred') {
+      emptyIcon = 'star';
+      emptyMsg = 'No starred conversations yet. Star a chat to keep track of it!';
+    }
+
     feed.innerHTML = `
       <div class="empty-feed-state" style="padding:40px 16px; text-align:center; color:var(--text-secondary);">
-        <i data-lucide="message-square-dashed" style="width:36px; height:36px; margin-bottom:10px; color:var(--text-secondary);"></i>
-        <p style="font-size:13px;">No conversations found</p>
+        <i data-lucide="${emptyIcon}" style="width:36px; height:36px; margin-bottom:10px; color:var(--text-secondary);"></i>
+        <p style="font-size:13px;">${emptyMsg}</p>
       </div>
     `;
     lucide.createIcons();
@@ -536,6 +661,8 @@ function renderHomeFeed(searchQuery = '') {
     // App specific avatar template
     let avatarContent = `<div class="feed-avatar ${chat.avatarColor}">${initials}</div>`;
 
+    const isStarred = isChatStarred(chat.id);
+
     item.innerHTML = `
       <div class="feed-avatar-wrap">
         ${avatarContent}
@@ -543,7 +670,10 @@ function renderHomeFeed(searchQuery = '') {
       </div>
       <div class="feed-item-info">
         <div class="feed-item-header">
-          <span class="feed-item-name">${chat.name}</span>
+          <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+            <span class="feed-item-name">${chat.name}</span>
+            ${isStarred ? `<i data-lucide="star" style="width: 13px; height: 13px; fill: var(--primary-yellow); stroke: var(--primary-yellow); flex-shrink: 0;"></i>` : ''}
+          </div>
           <span class="feed-item-time">${chat.lastMessageTime}</span>
         </div>
         <div class="feed-item-msg-row">
@@ -587,6 +717,23 @@ function renderChatActiveWindow(chatId) {
   const initials = chat.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
   chatAvatar.innerHTML = `<div class="message-avatar ${chat.avatarColor}" style="width:36px; height:36px; font-size:13px">${initials}</div>`;
+
+  // Update star button active state
+  const starChatBtn = document.getElementById('btn-star-chat');
+  if (starChatBtn) {
+    const isStarred = isChatStarred(chatId);
+    starChatBtn.classList.toggle('starred', isStarred);
+    const starIcon = starChatBtn.querySelector('i');
+    if (starIcon) {
+      if (isStarred) {
+        starIcon.style.fill = 'var(--primary-yellow)';
+        starIcon.style.stroke = 'var(--primary-yellow)';
+      } else {
+        starIcon.style.fill = 'none';
+        starIcon.style.stroke = 'currentColor';
+      }
+    }
+  }
 
   // Welcome Banner details
   document.getElementById('banner-title').textContent = chat.name;

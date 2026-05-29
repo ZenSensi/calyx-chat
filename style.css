@@ -2055,3 +2055,15 @@ body {
   overflow: hidden;
 }
 
+/* Starred chat button and indicator styles */
+#btn-star-chat.starred svg {
+  fill: var(--primary-yellow) !important;
+  stroke: var(--primary-yellow) !important;
+  filter: drop-shadow(0 0 4px var(--primary-yellow));
+}
+
+#btn-star-chat:hover svg {
+  color: var(--primary-yellow-hover);
+}
+
+
