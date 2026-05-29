@@ -45,7 +45,7 @@
           <p class="brand-sub">Your workspace for secure, real-time communication.</p>
         </div>
 
-        <ul class="feature-list" aria-label="Features">
+        <ul class="feature-list">
           <li class="feature-item">
             <div class="feature-icon" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
@@ -75,13 +75,13 @@
     </aside>
 
     <!-- Right auth card -->
-    <main class="auth-panel" aria-label="Authentication">
+    <section class="auth-panel" aria-label="Authentication">
       <div class="auth-card glass-card">
 
         <!-- Tab switcher -->
         <div class="auth-tabs" role="tablist" aria-label="Sign in or Register">
-          <button class="tab-btn active" id="tab-signin" role="tab" aria-selected="true" aria-controls="panel-signin">Sign In</button>
-          <button class="tab-btn" id="tab-register" role="tab" aria-selected="false" aria-controls="panel-register">Register</button>
+          <button type="button" class="tab-btn active" id="tab-signin" role="tab" aria-selected="true" aria-controls="panel-signin">Sign In</button>
+          <button type="button" class="tab-btn" id="tab-register" role="tab" aria-selected="false" aria-controls="panel-register">Register</button>
           <div class="tab-indicator" aria-hidden="true"></div>
         </div>
 
@@ -208,7 +208,7 @@
           <a href="#" class="link-btn">Privacy Policy</a>.
         </p>
       </div>
-    </main>
+    </section>
   </div>
 
   <!-- Toast -->
@@ -216,7 +216,6 @@
     <span id="auth-toast-msg"></span>
   </div>
 
-  
   </div>
 
   <!-- Premium Tech Grid & Floating Glow Blobs -->
@@ -231,7 +230,7 @@
     <!-- Header -->
     <header class="meet-nav glass-panel" aria-label="App navigation">
       <div class="nav-left">
-        <button id="sidebar-toggle" class="nav-icon-btn" title="Toggle Sidebar" aria-label="Toggle Sidebar">
+        <button type="button" id="sidebar-toggle" class="nav-icon-btn" title="Toggle Sidebar" aria-label="Toggle Sidebar">
           <i data-lucide="menu"></i>
         </button>
         <div class="calyx-logo">
@@ -250,7 +249,7 @@
         <div class="search-bar-wrap">
           <i data-lucide="search" class="search-icon"></i>
           <input type="text" id="chat-search" placeholder="Search chat, spaces, or apps..." autocomplete="off">
-          <button id="search-clear-btn" class="search-clear-btn" style="display: none;" aria-label="Clear search">
+          <button type="button" id="search-clear-btn" class="search-clear-btn" style="display: none;" aria-label="Clear search">
             <i data-lucide="x"></i>
           </button>
         </div>
@@ -258,38 +257,38 @@
 
       <div class="nav-right">
         <div class="status-selector-wrap">
-          <button id="status-pill" class="status-pill active-pill" aria-haspopup="listbox" aria-expanded="false" aria-label="Set status">
+          <button type="button" id="status-pill" class="status-pill active-pill" aria-haspopup="listbox" aria-expanded="false" aria-label="Set status">
             <span class="status-dot online"></span>
             <span class="status-text">Active</span>
             <i data-lucide="chevron-down" class="chevron-icon"></i>
           </button>
           <!-- Status Dropdown -->
           <div id="status-dropdown" class="modern-dropdown" style="display: none;">
-            <button class="dropdown-item" data-status="active">
+            <button type="button" class="dropdown-item" data-status="active">
               <span class="status-dot online"></span> Active
             </button>
-            <button class="dropdown-item" data-status="away">
+            <button type="button" class="dropdown-item" data-status="away">
               <span class="status-dot away"></span> Away
             </button>
-            <button class="dropdown-item" data-status="dnd">
+            <button type="button" class="dropdown-item" data-status="dnd">
               <span class="status-dot dnd"></span> Do not disturb
             </button>
-            <button class="dropdown-item" data-status="offline">
+            <button type="button" class="dropdown-item" data-status="offline">
               <span class="status-dot offline"></span> Invisible
             </button>
           </div>
         </div>
-        <button id="theme-toggle" class="nav-icon-btn" title="Toggle Theme" aria-label="Toggle Theme" style="display: none;">
+        <button type="button" id="theme-toggle" class="nav-icon-btn" title="Toggle Theme" aria-label="Toggle Theme" style="display: none;">
           <i data-lucide="sun" class="sun-icon"></i>
           <i data-lucide="moon" class="moon-icon" style="display: none;"></i>
         </button>
-        <button class="nav-icon-btn" title="Help" aria-label="Help">
+        <button type="button" class="nav-icon-btn" title="Help" aria-label="Help">
           <i data-lucide="help-circle"></i>
         </button>
-        <button class="nav-icon-btn" title="Settings" aria-label="Settings">
+        <button type="button" class="nav-icon-btn" title="Settings" aria-label="Settings">
           <i data-lucide="settings"></i>
         </button>
-        <button class="user-avatar-small" id="user-profile-btn" title="User Profile" aria-label="User Profile">
+        <button type="button" class="user-avatar-small" id="user-profile-btn" title="User Profile" aria-label="User Profile">
           <span aria-hidden="true">AM</span>
         </button>
       </div>
@@ -300,7 +299,7 @@
       <!-- Left Sidebar -->
       <aside id="left-sidebar" class="sidebar-panel glass-panel" aria-label="Sidebar navigation">
         <div class="new-chat-container">
-          <button id="btn-new-chat" class="btn-premium new-chat-btn">
+          <button type="button" id="btn-new-chat" class="btn-premium new-chat-btn">
             <i data-lucide="plus"></i>
             <span>New chat</span>
           </button>
@@ -339,7 +338,7 @@
             </ul>
             <div class="empty-section-promo" id="dms-empty-promo">
               <p>Chat with a colleague or friend</p>
-              <button class="promo-link-btn trigger-new-chat">Find a chat</button>
+              <button type="button" class="promo-link-btn trigger-new-chat">Find a chat</button>
             </div>
           </div>
 
@@ -354,7 +353,7 @@
             </ul>
             <div class="empty-section-promo" id="spaces-empty-promo">
               <p>Create a space to collaborate</p>
-              <button class="promo-link-btn trigger-new-chat">Find a space to join</button>
+              <button type="button" class="promo-link-btn trigger-new-chat">Find a space to join</button>
             </div>
           </div>
 
@@ -373,11 +372,11 @@
                 <span class="switch-slider"></span>
               </label>
             </div>
-            <button class="btn-filter" id="btn-filter-threads" title="Threads view">
+            <button type="button" class="btn-filter" id="btn-filter-threads" title="Threads view">
               <i data-lucide="hourglass"></i>
               <span>Thread</span>
             </button>
-            <button class="btn-filter-icon" id="btn-sort" title="Sort chats" aria-label="Sort chats">
+            <button type="button" class="btn-filter-icon" id="btn-sort" title="Sort chats" aria-label="Sort chats">
               <i data-lucide="align-left"></i>
             </button>
           </div>
@@ -397,7 +396,7 @@
             </div>
             <h3>Welcome to Calyx Chat</h3>
             <p>Select a conversation from the feed or click "New chat" to get started.</p>
-            <button class="btn-premium trigger-new-chat">Start a conversation</button>
+            <button type="button" class="btn-premium trigger-new-chat">Start a conversation</button>
           </div>
         </div>
 
@@ -418,16 +417,16 @@
               </div>
             </div>
             <div class="chat-meta-right">
-              <button class="nav-icon-btn" title="Search in chat" aria-label="Search in chat">
+              <button type="button" class="nav-icon-btn" title="Search in chat" aria-label="Search in chat">
                 <i data-lucide="search"></i>
               </button>
-              <button class="nav-icon-btn" title="Add members" aria-label="Add members">
+              <button type="button" class="nav-icon-btn" title="Add members" aria-label="Add members">
                 <i data-lucide="user-plus"></i>
               </button>
-              <button id="btn-expand-chat" class="nav-icon-btn" title="Fullscreen" aria-label="Fullscreen">
+              <button type="button" id="btn-expand-chat" class="nav-icon-btn" title="Fullscreen" aria-label="Fullscreen">
                 <i data-lucide="maximize-2"></i>
               </button>
-              <button id="btn-close-chat" class="nav-icon-btn" title="Close chat" aria-label="Close chat">
+              <button type="button" id="btn-close-chat" class="nav-icon-btn" title="Close chat" aria-label="Close chat">
                 <i data-lucide="x"></i>
               </button>
             </div>
@@ -476,10 +475,8 @@
             <button type="button" class="chat-btn-plus" id="input-plus-btn" title="Add integration" aria-label="Add integration">
               <i data-lucide="plus"></i>
             </button>
-            
             <div class="chat-input-container">
               <textarea id="message-textarea" rows="1" placeholder="History is on - Message Figma..." autocomplete="off"></textarea>
-              
               <div class="chat-input-actions">
                 <div class="formatting-tools">
                   <button type="button" class="input-tool-btn" title="Formatting Options" aria-label="Formatting Options">
@@ -498,8 +495,7 @@
                     <i data-lucide="mic"></i>
                   </button>
                 </div>
-                
-                <button id="btn-send-message" class="send-message-btn" title="Send message" aria-label="Send message" disabled>
+                <button type="button" id="btn-send-message" class="send-message-btn" title="Send message" aria-label="Send message" disabled>
                   <i data-lucide="send"></i>
                 </button>
               </div>
@@ -521,9 +517,7 @@
           <i data-lucide="x"></i>
         </button>
       </div>
-      
       <p class="modal-description">Create a direct message with a contact or create a new collaborative space.</p>
-      
       <form class="modal-form" id="new-chat-form">
         <div class="form-group">
           <label id="label-conversation-type">Conversation Type</label>
@@ -541,7 +535,7 @@
           </div>
         </div>
 
-        <div class="form-group" style="position: relative;">
+        <div class="form-group relative">
           <label for="new-chat-name" id="label-chat-name">Contact Name</label>
           <input type="text" id="new-chat-name" placeholder="Enter name..." required autocomplete="off">
           <div id="search-results-dropdown" class="search-dropdown-menu" style="display: none;"></div>
@@ -550,19 +544,19 @@
         <div class="form-group">
           <label id="label-theme-color">Choose Theme Color</label>
           <div class="avatar-theme-selection" role="radiogroup" aria-labelledby="label-theme-color">
-            <label class="avatar-color-option active" style="background-color: var(--primary-yellow);" data-color="yellow">
+            <label class="avatar-color-option active yellow" data-color="yellow">
               <input type="radio" name="avatar-color" value="yellow" checked>
             </label>
-            <label class="avatar-color-option" style="background-color: var(--accent-teal);" data-color="teal">
+            <label class="avatar-color-option teal" data-color="teal">
               <input type="radio" name="avatar-color" value="teal">
             </label>
-            <label class="avatar-color-option" style="background-color: #f43f5e;" data-color="red">
+            <label class="avatar-color-option red" data-color="red">
               <input type="radio" name="avatar-color" value="red">
             </label>
-            <label class="avatar-color-option" style="background-color: #a855f7;" data-color="purple">
+            <label class="avatar-color-option purple" data-color="purple">
               <input type="radio" name="avatar-color" value="purple">
             </label>
-            <label class="avatar-color-option" style="background-color: #10b981;" data-color="green">
+            <label class="avatar-color-option green" data-color="green">
               <input type="radio" name="avatar-color" value="green">
             </label>
           </div>
@@ -570,7 +564,7 @@
 
         <div class="modal-tips">
           <div class="tip-item">
-            <i data-lucide="sparkles" style="color: var(--primary-yellow);"></i>
+            <i data-lucide="sparkles" class="tip-icon"></i>
             <span>Spaces let you gather a team together. DMs are perfect for private 1-on-1 chats.</span>
           </div>
         </div>

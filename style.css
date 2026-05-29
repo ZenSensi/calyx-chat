@@ -1598,6 +1598,10 @@ body {
   gap: 6px;
 }
 
+.form-group.relative {
+  position: relative;
+}
+
 .form-group label {
   color: var(--text-secondary);
   font-size: 12px;
@@ -1682,6 +1686,26 @@ body {
   border: 2px solid transparent;
 }
 
+.avatar-color-option.yellow {
+  background-color: var(--primary-yellow);
+}
+
+.avatar-color-option.teal {
+  background-color: var(--accent-teal);
+}
+
+.avatar-color-option.red {
+  background-color: #f43f5e;
+}
+
+.avatar-color-option.purple {
+  background-color: #a855f7;
+}
+
+.avatar-color-option.green {
+  background-color: #10b981;
+}
+
 .avatar-color-option input {
   display: none;
 }
@@ -1715,6 +1739,10 @@ body {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
+}
+
+.tip-icon {
+  color: var(--primary-yellow);
 }
 
 .modal-actions {
