@@ -2,7 +2,7 @@
 // firebase-admin.js  –  Calyx Chat Admin Dashboard Firebase Configuration
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
   signInWithEmailAndPassword as fbSignInWithEmailAndPassword,
@@ -26,16 +26,13 @@ const mainFirebaseConfig = {
 };
 
 // ── 2. Admin Project Config (Separate project console for secure admin logins) 
-// 🔴 REPLACE this config block later with your separate Admin Firebase Console settings.
-// By default, it is initialized to the same project so it works out-of-the-box.
 const adminFirebaseConfig = {
-  apiKey: import.meta.env.VITE_ADMIN_FIREBASE_API_KEY || "AIzaSyAkQ-Pu5Xz1l-QwIICv8J2HsptSjYhE2d8",
-  authDomain: import.meta.env.VITE_ADMIN_FIREBASE_AUTH_DOMAIN || "calyx-meet.firebaseapp.com",
-  projectId: import.meta.env.VITE_ADMIN_FIREBASE_PROJECT_ID || "calyx-meet",
-  storageBucket: import.meta.env.VITE_ADMIN_FIREBASE_STORAGE_BUCKET || "calyx-meet.firebasestorage.app",
-  messagingSenderId: import.meta.env.VITE_ADMIN_FIREBASE_MESSAGING_SENDER_ID || "554595048851",
-  appId: import.meta.env.VITE_ADMIN_FIREBASE_APP_ID || "1:554595048851:web:1f75faaf50e456a5e99c66",
-  measurementId: import.meta.env.VITE_ADMIN_FIREBASE_MEASUREMENT_ID || "G-VGZWN7XZBQ",
+  apiKey: import.meta.env.VITE_ADMIN_FIREBASE_API_KEY || "AIzaSyDefBGmNnyVn2UT-LWovsQH6iZjt64z1Pk",
+  authDomain: import.meta.env.VITE_ADMIN_FIREBASE_AUTH_DOMAIN || "calyx-chat-admin.firebaseapp.com",
+  projectId: import.meta.env.VITE_ADMIN_FIREBASE_PROJECT_ID || "calyx-chat-admin",
+  storageBucket: import.meta.env.VITE_ADMIN_FIREBASE_STORAGE_BUCKET || "calyx-chat-admin.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_ADMIN_FIREBASE_MESSAGING_SENDER_ID || "328508501386",
+  appId: import.meta.env.VITE_ADMIN_FIREBASE_APP_ID || "1:328508501386:web:395120cadd8bd10ec46c73"
 };
 
 // Initialize apps conditionally
@@ -45,16 +42,20 @@ let mainAuth = null;
 
 if (mainFirebaseConfig.projectId === adminFirebaseConfig.projectId) {
   // Same project: use a single app instance so Auth state is shared with Firestore
-  const app = initializeApp(mainFirebaseConfig);
+  const app = getApps().length > 0 ? getApp() : initializeApp(mainFirebaseConfig);
   db = getFirestore(app);
   auth = getAuth(app);
 } else {
   // Separate projects: initialize mainApp for database and adminApp for secure auth
-  const mainApp = initializeApp(mainFirebaseConfig, 'mainApp');
+  const mainApp = getApps().some(a => a.name === 'mainApp')
+    ? getApp('mainApp')
+    : initializeApp(mainFirebaseConfig, 'mainApp');
   db = getFirestore(mainApp);
   mainAuth = getAuth(mainApp);
 
-  const adminApp = initializeApp(adminFirebaseConfig, 'adminApp');
+  const adminApp = getApps().some(a => a.name === 'adminApp')
+    ? getApp('adminApp')
+    : initializeApp(adminFirebaseConfig, 'adminApp');
   auth = getAuth(adminApp);
 }
 
@@ -90,7 +91,7 @@ async function signOut(authInstance) {
   if (mainAuth && mainAuth !== authInstance) {
     try {
       await fbSignOut(mainAuth);
-    } catch (err) {}
+    } catch (err) { }
   }
 }
 
