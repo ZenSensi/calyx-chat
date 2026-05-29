@@ -33,13 +33,20 @@ onAuthStateChanged(auth, (user) => {
     if (appContainer) {
       appContainer.style.display = 'flex';
 
-      // Update profile button initials
+      // Update profile button initials or pfp
       const profileBtn = document.getElementById('user-profile-btn');
       if (profileBtn) {
-        const initials = user.displayName
-          ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-          : (user.email ? user.email.slice(0, 2).toUpperCase() : 'AM');
-        profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
+        if (user.photoURL) {
+          profileBtn.innerHTML = `<img src="${user.photoURL}" alt="User Profile Picture" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+          profileBtn.style.padding = '0';
+          profileBtn.style.background = 'transparent';
+          profileBtn.style.border = 'none';
+        } else {
+          const initials = user.displayName
+            ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+            : (user.email ? user.email.slice(0, 2).toUpperCase() : 'AM');
+          profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
+        }
 
         if (!profileBtn.dataset.hasSignoutListener) {
           profileBtn.dataset.hasSignoutListener = 'true';

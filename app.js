@@ -19,6 +19,51 @@ import {
 let conversationsListener = null;
 let messagesListener = null;
 
+// Robust Timestamp and Date formatter helper
+function formatTimestamp(timestamp) {
+  if (!timestamp) return 'Now';
+
+  // 1. If it's a Firestore Timestamp with toDate() method
+  if (typeof timestamp.toDate === 'function') {
+    try {
+      const date = timestamp.toDate();
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      console.error("Error calling toDate on timestamp:", e);
+    }
+  }
+
+  // 2. If it's a plain object with seconds (sometimes happens with serialized or offline data)
+  if (typeof timestamp === 'object' && timestamp !== null && 'seconds' in timestamp) {
+    try {
+      const date = new Date(timestamp.seconds * 1000);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      console.error("Error parsing seconds timestamp:", e);
+    }
+  }
+
+  // 3. If it's a JS Date object
+  if (timestamp instanceof Date) {
+    return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // 4. If it's a string or number
+  if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+    try {
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch (e) {
+      console.error("Error parsing string/number timestamp:", e);
+    }
+  }
+
+  // 5. Fallback for FieldValue (pending local write) or anything else
+  return 'Now';
+}
+
 function getCurrentUserName() {
   const user = auth.currentUser;
   return user?.displayName || user?.email?.split('@')[0] || 'Me';
@@ -48,7 +93,7 @@ function saveStarredChatIds(starredIds) {
   try {
     const key = `starred_chats_${user.uid}`;
     localStorage.setItem(key, JSON.stringify(starredIds));
-  } catch (e) {}
+  } catch (e) { }
 }
 
 function isChatStarred(chatId) {
@@ -72,14 +117,14 @@ function hasMention(chat) {
   if (!chat.history) return false;
   const userName = getCurrentUserName().toLowerCase();
   const userInitials = getCurrentUserInitials().toLowerCase();
-  
+
   return chat.history.some(msg => {
     if (msg.isMe) return false;
     const text = (msg.text || '').toLowerCase();
-    
+
     return text.includes('@') && (
-      text.includes('@' + userName) || 
-      text.includes('@' + userName.replace(/\s+/g, '')) || 
+      text.includes('@' + userName) ||
+      text.includes('@' + userName.replace(/\s+/g, '')) ||
       text.includes('@' + userInitials) ||
       text.includes('@all') ||
       text.includes('@everyone') ||
@@ -100,57 +145,27 @@ const state = {
   chats: {
     'calyx-bot': {
       id: 'calyx-bot',
-      type: 'dm',
-      name: 'Calyx AI Bot',
+      type: 'app',
+      name: 'Calyx Intro Bot',
       lastMessage: 'Welcome to Calyx Chat! How can I help you today?',
+      lastMessageTime: 'Now',
+      unreadCount: 0,
       avatarColor: 'yellow',
       status: 'online',
       history: [
         {
           id: 'cb1',
-          senderName: 'Calyx AI Bot',
+          senderName: 'Calyx Intro Bot',
           isMe: false,
-          text: 'Hey there! I am the Calyx Assistant. I am developed by Arnabh aka ZenSensi',
+          text: 'Hey there! I am the Calyx Intro Bot. I am developed by Arnabh aka ZenSensi',
           time: '12:44 PM'
         },
         {
           id: 'cb2',
-          senderName: 'Calyx AI Bot',
+          senderName: 'Calyx Intro Bot',
           isMe: false,
-          text: 'Welcome to Calyx Chat! Ask me about Calyx Meet, our new colors, or type a request to test my interactive chat capabilities.',
+          text: 'Welcome to Calyx Chat! Calyx chat is a platform for seamless communication and collaboration. It is a place where you can connect with your friends, family, and colleagues in real-time, without sharing any personal information.',
           time: '12:45 PM'
-        }
-      ]
-    },
-    'support-team': {
-      id: 'support-team',
-      type: 'space',
-      name: 'Support Team Space',
-      avatarColor: 'teal',
-      lastMessage: 'John: We updated the deployment plan.',
-      lastMessageTime: 'Yesterday',
-      unreadCount: 0,
-      status: 'online',
-      history: [
-        {
-          id: 'st1',
-          senderName: 'Sarah',
-          isMe: false,
-          text: 'Welcome to the Calyx Support channel! Let us know if you run into any issues.',
-          time: 'Yesterday, 9:30 AM'
-        },
-        {
-          id: 'st2',
-          senderName: 'John',
-          isMe: false,
-          text: 'We updated the deployment plan. Check it out here!',
-          time: 'Yesterday, 4:12 PM',
-          richCard: {
-            title: 'Deployment Plan Update',
-            desc: 'Staging deployment workflow completed successfully. Check the pipeline logs for details.',
-            icon: 'sparkles',
-            btnText: 'View Pipeline'
-          }
         }
       ]
     }
@@ -525,6 +540,86 @@ function setupEventListeners() {
     });
   }
 
+  const shortcutSupport = document.getElementById('shortcut-support');
+  if (shortcutSupport) {
+    shortcutSupport.addEventListener('click', async () => {
+      state.activeShortcut = 'support';
+      document.querySelector('.center-header h2').textContent = 'Support Chat';
+      renderSidebar();
+
+      const myUser = auth.currentUser;
+      if (!myUser) return;
+
+      const supportId = `support_${myUser.uid}`;
+
+      // If the support chat is not in our loaded chats list, create it in Firestore
+      if (!state.chats[supportId]) {
+        // Create optimistic support chat in state so it opens instantly
+        state.chats[supportId] = {
+          id: supportId,
+          type: 'support',
+          name: 'Support Chat',
+          avatarColor: 'teal',
+          lastMessage: 'Opening support channel...',
+          lastMessageTime: 'Now',
+          status: 'open',
+          history: [
+            {
+              id: 'support-welcome',
+              senderName: 'Calyx Support',
+              isMe: false,
+              text: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
+              time: 'Now'
+            }
+          ]
+        };
+
+        // Render it instantly
+        renderSidebar();
+        renderHomeFeed();
+
+        // Also create it in Firestore in the background
+        (async () => {
+          try {
+            const docRef = doc(db, 'chat_conversations', supportId);
+            await setDoc(docRef, {
+              id: supportId,
+              type: 'support',
+              name: 'Support Chat',
+              avatarColor: 'teal',
+              participants: [myUser.uid, 'support-admin'],
+              participantDetails: {
+                [myUser.uid]: {
+                  displayName: myUser.displayName || myUser.email.split('@')[0],
+                  email: myUser.email,
+                  avatarColor: 'teal'
+                }
+              },
+              lastMessage: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
+              lastMessageTime: serverTimestamp(),
+              createdTime: serverTimestamp(),
+              status: 'open'
+            });
+
+            // Add a welcome message in subcollection messages
+            const msgColl = collection(db, `chat_conversations/${supportId}/messages`);
+            await addDoc(msgColl, {
+              senderUid: 'support-admin',
+              senderName: 'Calyx Support',
+              text: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
+              time: serverTimestamp()
+            });
+          } catch (err) {
+            console.error("Error creating support channel:", err);
+          }
+        })();
+      }
+
+      // Switch active chat to support
+      switchActiveChat(supportId);
+    });
+  }
+
   // Star Chat Button listener
   const starChatBtn = document.getElementById('btn-star-chat');
   if (starChatBtn) {
@@ -546,10 +641,12 @@ function renderSidebar() {
   const homeBtn = document.getElementById('shortcut-home');
   const mentionsBtn = document.getElementById('shortcut-mentions');
   const starredBtn = document.getElementById('shortcut-starred');
+  const supportBtn = document.getElementById('shortcut-support');
 
   if (homeBtn) homeBtn.classList.toggle('active', state.activeShortcut === 'home');
   if (mentionsBtn) mentionsBtn.classList.toggle('active', state.activeShortcut === 'mentions');
   if (starredBtn) starredBtn.classList.toggle('active', state.activeShortcut === 'starred');
+  if (supportBtn) supportBtn.classList.toggle('active', state.activeShortcut === 'support');
 
   dmsList.innerHTML = '';
   spacesList.innerHTML = '';
@@ -559,6 +656,7 @@ function renderSidebar() {
 
   Object.values(state.chats).forEach(chat => {
     if (chat.type === 'app') return; // Apps are handled statically or in a separate block
+    if (chat.type === 'support') return; // Support is handled via the Support Chat shortcut
 
     const li = document.createElement('li');
     li.className = `section-item ${state.activeChatId === chat.id ? 'active' : ''}`;
@@ -608,8 +706,15 @@ function renderHomeFeed(searchQuery = '') {
 
   feed.innerHTML = '';
   const query = searchQuery.toLowerCase();
-
   const filteredChats = Object.values(state.chats).filter(chat => {
+    // If the active shortcut is support, we ONLY show support chats.
+    // Otherwise, we hide support chats from all other views.
+    if (state.activeShortcut === 'support') {
+      if (chat.type !== 'support') return false;
+    } else {
+      if (chat.type === 'support') return false;
+    }
+
     // Filter by Active Shortcut View
     if (state.activeShortcut === 'mentions') {
       if (!hasMention(chat)) return false;
@@ -707,6 +812,11 @@ function renderChatActiveWindow(chatId) {
   if (chat.type === 'space') {
     statusEl.textContent = 'Space • Collaborators sync active';
     document.getElementById('active-chat-badge').style.display = 'none';
+  } else if (chat.type === 'support') {
+    statusEl.textContent = chat.status === 'open' ? 'Support Ticket • Open' : 'Support Ticket • Resolved';
+    document.getElementById('active-chat-badge').style.display = 'inline-block';
+    document.getElementById('active-chat-badge').textContent = 'Support';
+    document.getElementById('active-chat-badge').style.background = 'linear-gradient(135deg, #ef4444, #b91c1c)';
   } else {
     statusEl.textContent = chat.status === 'online' ? 'Active now' : 'Offline';
     document.getElementById('active-chat-badge').style.display = 'none';
@@ -758,10 +868,15 @@ function renderChatActiveWindow(chatId) {
     } else {
       item.className = `message-item ${msg.isMe ? 'sent' : ''}`;
 
-      const msgInitials = msg.isMe ? getCurrentUserInitials() : msg.senderName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-      const msgAvatarColor = msg.isMe ? 'yellow' : chat.avatarColor;
-
-      let msgAvatarHtml = `<div class="message-avatar ${msgAvatarColor}">${msgInitials}</div>`;
+      const user = auth.currentUser;
+      let msgAvatarHtml = '';
+      if (msg.isMe && user && user.photoURL) {
+        msgAvatarHtml = `<div class="message-avatar" style="padding: 0; background: transparent; border: none;"><img src="${user.photoURL}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+      } else {
+        const msgInitials = msg.isMe ? getCurrentUserInitials() : msg.senderName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+        const msgAvatarColor = msg.isMe ? 'yellow' : chat.avatarColor;
+        msgAvatarHtml = `<div class="message-avatar ${msgAvatarColor}">${msgInitials}</div>`;
+      }
 
       // Rich layout card logic (Calyx Meet updates)
       let cardHtml = '';
@@ -1013,9 +1128,39 @@ function setupRealtimeListeners() {
   );
 
   conversationsListener = onSnapshot(conversationsQuery, (snapshot) => {
-    const newChats = {
-      'calyx-bot': state.chats['calyx-bot']
-    };
+    const newChats = {};
+
+    // Safely copy or initialize Calyx Bot config
+    if (state.chats && state.chats['calyx-bot']) {
+      newChats['calyx-bot'] = state.chats['calyx-bot'];
+    } else {
+      newChats['calyx-bot'] = {
+        id: 'calyx-bot',
+        type: 'app',
+        name: 'Calyx Intro Bot',
+        lastMessage: 'Welcome to Calyx Chat! How can I help you today?',
+        lastMessageTime: 'Now',
+        unreadCount: 0,
+        avatarColor: 'yellow',
+        status: 'online',
+        history: [
+          {
+            id: 'cb1',
+            senderName: 'Calyx Intro Bot',
+            isMe: false,
+            text: 'Hey there! I am the Calyx Intro Bot. I am developed by Arnabh aka ZenSensi',
+            time: '12:44 PM'
+          },
+          {
+            id: 'cb2',
+            senderName: 'Calyx Intro Bot',
+            isMe: false,
+            text: 'Welcome to Calyx Chat! Calyx chat is a platform for seamless communication and collaboration. It is a place where you can connect with your friends, family, and colleagues in real-time, without sharing any personal information.',
+            time: '12:45 PM'
+          }
+        ]
+      };
+    }
 
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
@@ -1030,11 +1175,7 @@ function setupRealtimeListeners() {
         avatarColor = otherDetails.avatarColor || 'yellow';
       }
 
-      let lastMsgTime = 'Now';
-      if (data.lastMessageTime) {
-        const date = data.lastMessageTime.toDate ? data.lastMessageTime.toDate() : new Date(data.lastMessageTime);
-        lastMsgTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
+      const lastMsgTime = formatTimestamp(data.lastMessageTime);
 
       newChats[docSnap.id] = {
         id: docSnap.id,
@@ -1044,7 +1185,7 @@ function setupRealtimeListeners() {
         lastMessage: data.lastMessage || (data.type === 'space' ? 'Space created' : 'Conversation started'),
         lastMessageTime: lastMsgTime,
         unreadCount: 0,
-        status: isDM ? 'online' : 'offline',
+        status: data.status || (isDM ? 'online' : 'offline'),
         history: state.chats[docSnap.id]?.history || []
       };
     });
@@ -1075,11 +1216,7 @@ function setupMessagesListener(chatId) {
     chat.history = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      let timeString = 'Now';
-      if (data.time) {
-        const date = data.time.toDate ? data.time.toDate() : new Date(data.time);
-        timeString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
+      const timeString = formatTimestamp(data.time);
 
       chat.history.push({
         id: docSnap.id,
@@ -1203,10 +1340,28 @@ async function sendMessageToFirestore(conversationId, text) {
     });
 
     const convDocRef = doc(db, 'chat_conversations', conversationId);
-    await setDoc(convDocRef, {
+    const updateData = {
       lastMessage: `${myUser.displayName || myUser.email.split('@')[0]}: ${text}`,
       lastMessageTime: serverTimestamp()
-    }, { merge: true });
+    };
+
+    // If it's a support chat, ensure the parent document has the required fields
+    if (conversationId.startsWith('support_')) {
+      updateData.type = 'support';
+      updateData.name = 'Support Chat';
+      updateData.avatarColor = 'teal';
+      updateData.status = 'open'; // Force status to 'open' when client sends a message
+      updateData.participants = [myUser.uid, 'support-admin'];
+      updateData.participantDetails = {
+        [myUser.uid]: {
+          displayName: myUser.displayName || myUser.email.split('@')[0],
+          email: myUser.email,
+          avatarColor: 'teal'
+        }
+      };
+    }
+
+    await setDoc(convDocRef, updateData, { merge: true });
   } catch (err) {
     console.error("Error sending message to Firestore:", err);
     showToast("Failed to send message.");
