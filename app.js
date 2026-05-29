@@ -304,6 +304,46 @@ function setupEventListeners() {
     });
   }
 
+  const nameInput = document.getElementById('new-chat-name');
+  const searchDropdown = document.getElementById('search-results-dropdown');
+
+  const triggerUserSearch = async () => {
+    const typeRadio = newChatForm.querySelector('input[name="chat-type"]:checked');
+    const type = typeRadio ? typeRadio.value : 'dm';
+
+    if (type !== 'dm') {
+      if (searchDropdown) searchDropdown.style.display = 'none';
+      return;
+    }
+
+    const queryVal = nameInput ? nameInput.value.trim().toLowerCase() : '';
+
+    try {
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const matches = [];
+      const myUid = auth.currentUser?.uid;
+
+      usersSnap.forEach(docSnap => {
+        const u = docSnap.data();
+        if (u.uid === myUid) return;
+
+        if (queryVal.length < 1) {
+          matches.push(u);
+        } else {
+          const nameMatch = u.displayName?.toLowerCase().includes(queryVal);
+          const emailMatch = u.email?.toLowerCase().includes(queryVal);
+          if (nameMatch || emailMatch) {
+            matches.push(u);
+          }
+        }
+      });
+
+      renderSearchResults(matches);
+    } catch (err) {
+      console.error("Error querying users collection:", err);
+    }
+  };
+
   // New Chat Modal Triggers
   const newChatBtns = document.querySelectorAll('.trigger-new-chat, #btn-new-chat');
   const newChatModal = document.getElementById('new-chat-modal');
@@ -314,7 +354,10 @@ function setupEventListeners() {
   newChatBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       newChatModal.style.display = 'flex';
-      document.getElementById('new-chat-name').focus();
+      if (nameInput) {
+        nameInput.focus();
+        triggerUserSearch();
+      }
     });
   });
 
@@ -327,7 +370,6 @@ function setupEventListeners() {
     newChatForm.querySelectorAll('.avatar-color-option').forEach((opt, idx) => {
       opt.classList.toggle('active', idx === 0);
     });
-    const searchDropdown = document.getElementById('search-results-dropdown');
     if (searchDropdown) searchDropdown.style.display = 'none';
   };
 
@@ -343,16 +385,23 @@ function setupEventListeners() {
       radio.checked = true;
 
       // Update name input placeholder
-      const nameInput = document.getElementById('new-chat-name');
       const labelName = document.getElementById('label-chat-name');
-      const searchDropdown = document.getElementById('search-results-dropdown');
       if (radio.value === 'space') {
-        nameInput.placeholder = 'e.g. Design Sync, Marketing Campaign...';
-        labelName.textContent = 'Space Name';
+        if (nameInput) {
+          nameInput.placeholder = 'e.g. Design Sync, Marketing Campaign...';
+        }
+        if (labelName) {
+          labelName.textContent = 'Space Name';
+        }
         if (searchDropdown) searchDropdown.style.display = 'none';
       } else {
-        nameInput.placeholder = 'e.g. John Doe...';
-        labelName.textContent = 'Contact Name';
+        if (nameInput) {
+          nameInput.placeholder = 'e.g. John Doe...';
+        }
+        if (labelName) {
+          labelName.textContent = 'Contact Name';
+        }
+        triggerUserSearch();
       }
     });
   });
@@ -366,41 +415,10 @@ function setupEventListeners() {
   });
 
   // User directory search for DM type
-  const nameInput = document.getElementById('new-chat-name');
-  const searchDropdown = document.getElementById('search-results-dropdown');
   if (nameInput && searchDropdown) {
-    nameInput.addEventListener('input', async () => {
-      const queryVal = nameInput.value.trim().toLowerCase();
-      const typeRadio = newChatForm.querySelector('input[name="chat-type"]:checked');
-      const type = typeRadio ? typeRadio.value : 'dm';
-
-      if (type !== 'dm' || queryVal.length < 1) {
-        searchDropdown.style.display = 'none';
-        return;
-      }
-
-      try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const matches = [];
-        const myUid = auth.currentUser?.uid;
-
-        usersSnap.forEach(docSnap => {
-          const u = docSnap.data();
-          if (u.uid === myUid) return;
-
-          const nameMatch = u.displayName?.toLowerCase().includes(queryVal);
-          const emailMatch = u.email?.toLowerCase().includes(queryVal);
-
-          if (nameMatch || emailMatch) {
-            matches.push(u);
-          }
-        });
-
-        renderSearchResults(matches);
-      } catch (err) {
-        console.error("Error querying users collection:", err);
-      }
-    });
+    nameInput.addEventListener('input', triggerUserSearch);
+    nameInput.addEventListener('focus', triggerUserSearch);
+    nameInput.addEventListener('click', triggerUserSearch);
 
     document.addEventListener('click', (e) => {
       if (!nameInput.contains(e.target) && !searchDropdown.contains(e.target)) {
