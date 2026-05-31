@@ -2296,3 +2296,300 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Input Action Preview Bar (Reply/Edit message preview) */
+.input-action-preview-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(251, 191, 36, 0.05);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.1);
+  animation: slideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.preview-bar-details {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.preview-bar-details i,
+.preview-bar-details svg {
+  color: var(--primary-yellow);
+  flex-shrink: 0;
+}
+
+.preview-text-col {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.preview-bar-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-yellow);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.preview-bar-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 500px;
+}
+
+.preview-bar-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.preview-bar-close-btn:hover {
+  color: var(--accent-red);
+}
+
+/* Floating Message Context Menu */
+.message-context-menu {
+  position: fixed;
+  z-index: 10000;
+  background: rgba(15, 12, 10, 0.95);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(251, 191, 36, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  backdrop-filter: blur(20px);
+  min-width: 150px;
+  animation: scaleIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.context-menu-item {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-family);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  border-radius: 8px;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.context-menu-item i,
+.context-menu-item svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-secondary);
+}
+
+.context-menu-item:hover {
+  background: var(--accent-yellow-glow);
+  color: var(--primary-yellow);
+}
+
+.context-menu-item:hover i,
+.context-menu-item:hover svg {
+  color: var(--primary-yellow);
+}
+
+.context-menu-item.danger {
+  color: var(--accent-red);
+}
+
+.context-menu-item.danger i,
+.context-menu-item.danger svg {
+  color: var(--accent-red);
+}
+
+.context-menu-item.danger:hover {
+  background: rgba(244, 63, 94, 0.1);
+}
+
+/* Quoted Reply inside Message Bubble */
+.message-bubble-reply-ref {
+  background: rgba(251, 191, 36, 0.06);
+  border-left: 3px solid var(--primary-yellow);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.reply-ref-name {
+  font-weight: 700;
+  color: var(--primary-yellow);
+  font-size: 10px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+  display: block;
+}
+
+/* Message Item Hover Layout & Desktop Reply Button */
+.message-item-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+  transition: background-color 0.2s;
+  overflow: visible;
+}
+
+.message-item-container:hover {
+  background: rgba(251, 191, 36, 0.02);
+}
+
+.message-hover-actions {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  transition: opacity 0.2s ease;
+}
+
+/* Sent message: reply button is on the left of the bubble */
+.message-item-container.sent .message-hover-actions {
+  left: auto;
+  right: calc(100% - 10px);
+}
+
+/* Received message: reply button is on the right of the bubble */
+.message-item-container:not(.sent) .message-hover-actions {
+  left: calc(100% - 10px);
+  right: auto;
+}
+
+.message-item-container:hover .message-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.btn-msg-reply {
+  background: rgba(13, 12, 10, 0.85);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  color: var(--text-secondary);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+}
+
+.btn-msg-reply:hover {
+  border-color: var(--primary-yellow);
+  color: var(--primary-yellow);
+  transform: scale(1.1);
+}
+
+/* Swipe-to-reply Touch Styles */
+.message-item {
+  width: 100%;
+  transition: transform 0.15s ease-out;
+  touch-action: pan-y; /* Allow vertical scroll, disable browser touch gestures horizontal */
+  position: relative;
+}
+
+.swipe-reply-indicator {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: -30px;
+  opacity: 0;
+  transition: all 0.2s;
+  color: var(--primary-yellow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Highlight Flash Animation for Reply References */
+.highlight-flash {
+  animation: flashHighlight 1.2s ease-out;
+  border-radius: 8px;
+}
+
+@keyframes flashHighlight {
+  0% {
+    background-color: rgba(251, 191, 36, 0.2);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* Enable relative positioning for hover action layout anchoring */
+.message-content-wrap {
+  position: relative;
+}
+
+/* Profile settings picture container styles */
+.profile-pfp-container:hover .profile-pfp-hover-overlay {
+  opacity: 1 !important;
+}
+.profile-pfp-container:hover {
+  border-color: var(--primary-yellow) !important;
+  transform: scale(1.03);
+}
+.btn-glass.danger {
+  color: var(--accent-red) !important;
+  border-color: rgba(244, 63, 94, 0.2) !important;
+}
+.btn-glass.danger:hover {
+  background: rgba(244, 63, 94, 0.1) !important;
+  border-color: var(--accent-red) !important;
+}

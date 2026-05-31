@@ -1,6 +1,6 @@
 
 // Calyx Chat Application Logic
-import { auth, db } from './firebase.js';
+import { auth, db, updateProfile, signOut } from './firebase.js';
 import {
   collection,
   getDocs,
@@ -13,6 +13,7 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  updateDoc,
 } from 'firebase/firestore';
 
 // Real-time listener references (stored so they can be unsubscribed)
@@ -142,6 +143,8 @@ const state = {
   collapsedSidebar: false,
   collapsedUtility: false,
   activeShortcut: 'home',
+  replyingToMsg: null,
+  editingMsg: null,
   chats: {
     'calyx-bot': {
       id: 'calyx-bot',
@@ -687,7 +690,617 @@ function setupEventListeners() {
       });
     });
   }
+
+  // Preview bar close button
+  const previewCloseBtn = document.getElementById('preview-bar-close-btn');
+  if (previewCloseBtn) {
+    previewCloseBtn.addEventListener('click', cancelInputMode);
+  }
+
+  // Setup message-level interactions (clicks, touch gestures, right-click, context menu)
+  setupMessageInteractions();
+
+  // Profile settings modal triggers
+  const profileSettingsModal = document.getElementById('profile-settings-modal');
+  const profileModalClose = document.getElementById('profile-modal-close');
+  const profileCancelBtn = document.getElementById('btn-profile-cancel');
+
+  const openProfileSettings = () => {
+    if (profileSettingsModal) {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const displayNameInput = document.getElementById('profile-display-name');
+      const emailInput = document.getElementById('profile-email-readonly');
+      const pfpImg = document.getElementById('profile-pfp-img');
+      const pfpFallback = document.getElementById('profile-pfp-fallback');
+      const removePhotoBtn = document.getElementById('btn-remove-photo');
+      const previewContainer = document.getElementById('profile-pfp-preview-container');
+
+      if (displayNameInput) displayNameInput.value = user.displayName || user.email.split('@')[0];
+      if (emailInput) emailInput.value = user.email;
+
+      const initials = getCurrentUserInitials();
+      if (pfpFallback) pfpFallback.textContent = initials;
+
+      if (user.photoURL) {
+        if (pfpImg) {
+          pfpImg.src = user.photoURL;
+          pfpImg.style.display = 'block';
+        }
+        if (pfpFallback) pfpFallback.style.display = 'none';
+        if (removePhotoBtn) removePhotoBtn.style.display = 'inline-block';
+        if (previewContainer) previewContainer.dataset.photoUrl = user.photoURL;
+      } else {
+        if (pfpImg) {
+          pfpImg.src = '';
+          pfpImg.style.display = 'none';
+        }
+        if (pfpFallback) pfpFallback.style.display = 'block';
+        if (removePhotoBtn) removePhotoBtn.style.display = 'none';
+        if (previewContainer) previewContainer.dataset.photoUrl = '';
+      }
+
+      profileSettingsModal.style.display = 'flex';
+      lucide.createIcons();
+    }
+  };
+
+  window.addEventListener('open-profile-settings', openProfileSettings);
+
+  // Bind settings icon in header to open profile modal too!
+  const settingsBtn = document.querySelector('[title="Settings"]');
+  if (settingsBtn) {
+    settingsBtn.addEventListener('click', openProfileSettings);
+  }
+
+  const closeProfileSettings = () => {
+    if (profileSettingsModal) profileSettingsModal.style.display = 'none';
+  };
+
+  if (profileModalClose) profileModalClose.addEventListener('click', closeProfileSettings);
+  if (profileCancelBtn) profileCancelBtn.addEventListener('click', closeProfileSettings);
+
+  // Photo Uploader actions
+  const uploadPhotoBtn = document.getElementById('btn-upload-photo');
+  const removePhotoBtn = document.getElementById('btn-remove-photo');
+  const pfpInput = document.getElementById('profile-pfp-input');
+  const previewContainer = document.getElementById('profile-pfp-preview-container');
+
+  if (uploadPhotoBtn && pfpInput) {
+    uploadPhotoBtn.addEventListener('click', () => pfpInput.click());
+  }
+  if (previewContainer && pfpInput) {
+    previewContainer.addEventListener('click', () => pfpInput.click());
+  }
+
+  if (pfpInput) {
+    pfpInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          // Resize client-side using canvas
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const maxDim = 128;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > maxDim) {
+              h = Math.round(h * maxDim / w);
+              w = maxDim;
+            }
+          } else {
+            if (h > maxDim) {
+              w = Math.round(w * maxDim / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          ctx.drawImage(img, 0, 0, w, h);
+          const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+          const pfpImg = document.getElementById('profile-pfp-img');
+          const pfpFallback = document.getElementById('profile-pfp-fallback');
+
+          if (pfpImg) {
+            pfpImg.src = resizedDataUrl;
+            pfpImg.style.display = 'block';
+          }
+          if (pfpFallback) pfpFallback.style.display = 'none';
+          if (removePhotoBtn) removePhotoBtn.style.display = 'inline-block';
+          if (previewContainer) previewContainer.dataset.photoUrl = resizedDataUrl;
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (removePhotoBtn) {
+    removePhotoBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const pfpImg = document.getElementById('profile-pfp-img');
+      const pfpFallback = document.getElementById('profile-pfp-fallback');
+
+      if (pfpImg) {
+        pfpImg.src = '';
+        pfpImg.style.display = 'none';
+      }
+      if (pfpFallback) {
+        pfpFallback.style.display = 'block';
+        pfpFallback.textContent = getCurrentUserInitials();
+      }
+      removePhotoBtn.style.display = 'none';
+      if (previewContainer) previewContainer.dataset.photoUrl = '';
+      if (pfpInput) pfpInput.value = '';
+    });
+  }
+
+  // Profile Form Submit
+  const profileForm = document.getElementById('profile-settings-form');
+  if (profileForm) {
+    profileForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('btn-profile-submit');
+      const prevSubmitText = submitBtn ? submitBtn.textContent : 'Save Changes';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+      }
+
+      const displayName = document.getElementById('profile-display-name').value.trim();
+      const photoUrl = previewContainer ? (previewContainer.dataset.photoUrl || '') : '';
+
+      try {
+        const user = auth.currentUser;
+        if (user) {
+          // 1. Update Firebase Auth Profile
+          await updateProfile(user, {
+            displayName: displayName,
+            photoURL: photoUrl || null
+          });
+
+          // 2. Update Firestore Doc
+          const userDocRef = doc(db, 'users', user.uid);
+          await setDoc(userDocRef, {
+            displayName: displayName,
+            photoURL: photoUrl || null,
+            lastActive: serverTimestamp()
+          }, { merge: true });
+
+          // 3. Update top-right avatar UI
+          const profileBtn = document.getElementById('user-profile-btn');
+          if (profileBtn) {
+            if (photoUrl) {
+              profileBtn.innerHTML = `<img src="${photoUrl}" alt="User Profile Picture" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+              profileBtn.style.padding = '0';
+              profileBtn.style.background = 'transparent';
+              profileBtn.style.border = 'none';
+            } else {
+              const initials = getCurrentUserInitials();
+              profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
+              profileBtn.removeAttribute('style'); // reset style changes
+            }
+          }
+
+          // 4. Update conversation states & render chat window
+          if (state.activeChatId) {
+            renderChatActiveWindow(state.activeChatId);
+          }
+          renderSidebar();
+          renderHomeFeed();
+
+          showToast("Profile updated successfully!");
+          closeProfileSettings();
+        }
+      } catch (err) {
+        console.error("Error updating profile:", err);
+        showToast("Failed to update profile.");
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = prevSubmitText;
+        }
+      }
+    });
+  }
+
+  // Profile signout button
+  const profileSignoutBtn = document.getElementById('btn-profile-signout');
+  if (profileSignoutBtn) {
+    profileSignoutBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to sign out?')) {
+        signOut(auth).then(() => location.reload());
+      }
+    });
+  }
 }
+
+// Setup Message Interactions (Right-click, click delegation, touch swipes)
+function setupMessageInteractions() {
+  const wrapper = document.getElementById('messages-list-wrapper');
+  if (!wrapper) return;
+
+  // Click delegation
+  wrapper.addEventListener('click', (e) => {
+    // Desktop reply button
+    const replyBtn = e.target.closest('.btn-msg-reply');
+    if (replyBtn) {
+      e.stopPropagation();
+      const container = replyBtn.closest('.message-item-container');
+      if (container) {
+        triggerReply({
+          id: container.getAttribute('data-msg-id'),
+          sender: container.getAttribute('data-sender'),
+          text: container.getAttribute('data-text')
+        });
+      }
+      return;
+    }
+
+    // Quoted reply navigation
+    const replyRef = e.target.closest('.message-bubble-reply-ref');
+    if (replyRef) {
+      e.stopPropagation();
+      const targetId = replyRef.getAttribute('data-target-id');
+      if (targetId) {
+        const targetEl = wrapper.querySelector(`[data-msg-id="${targetId}"]`);
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetEl.classList.add('highlight-flash');
+          setTimeout(() => {
+            targetEl.classList.remove('highlight-flash');
+          }, 1200);
+        }
+      }
+    }
+  });
+
+  // Right-click contextmenu delegation (Desktop)
+  wrapper.addEventListener('contextmenu', (e) => {
+    const container = e.target.closest('.message-item-container');
+    if (!container || container.querySelector('.message-item.system')) return;
+
+    e.preventDefault();
+
+    const msgId = container.getAttribute('data-msg-id');
+    const sender = container.getAttribute('data-sender');
+    const text = container.getAttribute('data-text');
+    const isMe = container.getAttribute('data-is-me');
+
+    showContextMenu(e.clientX, e.clientY, { msgId, sender, text, isMe });
+  });
+
+  // Mobile Touch Gestures (Long hold & Swipe-left reply)
+  let touchTimer = null;
+  let touchStartPos = { x: 0, y: 0 };
+  let isSwiping = false;
+  let swipedElement = null;
+
+  wrapper.addEventListener('touchstart', (e) => {
+    const container = e.target.closest('.message-item-container');
+    if (!container || container.querySelector('.message-item.system')) return;
+
+    const item = container.querySelector('.message-item');
+    if (!item) return;
+
+    const touch = e.touches[0];
+    touchStartPos = { x: touch.clientX, y: touch.clientY };
+    isSwiping = false;
+    swipedElement = item;
+
+    if (touchTimer) clearTimeout(touchTimer);
+
+    touchTimer = setTimeout(() => {
+      if (!isSwiping) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        
+        const msgId = container.getAttribute('data-msg-id');
+        const sender = container.getAttribute('data-sender');
+        const text = container.getAttribute('data-text');
+        const isMe = container.getAttribute('data-is-me');
+
+        showContextMenu(touch.clientX, touch.clientY, { msgId, sender, text, isMe });
+      }
+    }, 600); // 600ms long hold
+  }, { passive: true });
+
+  wrapper.addEventListener('touchmove', (e) => {
+    if (!swipedElement) return;
+
+    const touch = e.touches[0];
+    const diffX = touchStartPos.x - touch.clientX;
+    const diffY = touchStartPos.y - touch.clientY;
+
+    if (!isSwiping && Math.abs(diffX) > 10 && Math.abs(diffX) > Math.abs(diffY)) {
+      isSwiping = true;
+      if (touchTimer) clearTimeout(touchTimer);
+    }
+
+    if (isSwiping) {
+      if (diffX > 0) {
+        const translateVal = Math.min(diffX, 80);
+        swipedElement.style.transform = `translateX(-${translateVal}px)`;
+        swipedElement.style.transition = 'none';
+
+        const indicator = swipedElement.querySelector('.swipe-reply-indicator');
+        if (indicator) {
+          indicator.style.opacity = Math.min(diffX / 60, 1);
+          indicator.style.right = `${-30 + Math.min(diffX, 60)}px`;
+        }
+
+        if (e.cancelable) e.preventDefault();
+      }
+    } else {
+      if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+        if (touchTimer) clearTimeout(touchTimer);
+      }
+    }
+  }, { passive: false });
+
+  wrapper.addEventListener('touchend', (e) => {
+    if (touchTimer) clearTimeout(touchTimer);
+
+    if (swipedElement && isSwiping) {
+      const touch = e.changedTouches[0];
+      const diffX = touchStartPos.x - touch.clientX;
+
+      swipedElement.style.transition = 'transform 0.15s ease-out';
+      swipedElement.style.transform = 'translateX(0)';
+
+      const indicator = swipedElement.querySelector('.swipe-reply-indicator');
+      if (indicator) {
+        indicator.style.opacity = '0';
+        indicator.style.right = '-30px';
+      }
+
+      if (diffX >= 60) {
+        const container = swipedElement.closest('.message-item-container');
+        if (container) {
+          if (navigator.vibrate) navigator.vibrate(30);
+          triggerReply({
+            id: container.getAttribute('data-msg-id'),
+            sender: container.getAttribute('data-sender'),
+            text: container.getAttribute('data-text')
+          });
+        }
+      }
+    }
+
+    swipedElement = null;
+    isSwiping = false;
+  });
+
+  // Global menu dismisses
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('message-context-menu');
+    if (menu && !menu.contains(e.target)) {
+      menu.style.display = 'none';
+    }
+  });
+
+  document.addEventListener('contextmenu', (e) => {
+    const menu = document.getElementById('message-context-menu');
+    if (menu && !e.target.closest('#messages-list-wrapper')) {
+      menu.style.display = 'none';
+    }
+  });
+
+  // Context Menu Item Listeners
+  const ctxReply = document.getElementById('ctx-reply');
+  if (ctxReply) {
+    ctxReply.addEventListener('click', () => {
+      const menu = document.getElementById('message-context-menu');
+      if (menu) {
+        triggerReply({
+          id: menu.dataset.msgId,
+          sender: menu.dataset.sender,
+          text: menu.dataset.text
+        });
+        menu.style.display = 'none';
+      }
+    });
+  }
+
+  const ctxEdit = document.getElementById('ctx-edit');
+  if (ctxEdit) {
+    ctxEdit.addEventListener('click', () => {
+      const menu = document.getElementById('message-context-menu');
+      if (menu) {
+        triggerEdit({
+          id: menu.dataset.msgId,
+          text: menu.dataset.text
+        });
+        menu.style.display = 'none';
+      }
+    });
+  }
+
+  const ctxDelete = document.getElementById('ctx-delete');
+  if (ctxDelete) {
+    ctxDelete.addEventListener('click', () => {
+      const menu = document.getElementById('message-context-menu');
+      if (menu) {
+        handleDeleteMessage(menu.dataset.msgId);
+        menu.style.display = 'none';
+      }
+    });
+  }
+}
+
+// Show Custom Message Context Menu positioned perfectly within the viewport bounds
+function showContextMenu(x, y, msgData) {
+  const menu = document.getElementById('message-context-menu');
+  if (!menu) return;
+
+  menu.style.display = 'flex';
+
+  const menuWidth = menu.offsetWidth || 150;
+  const menuHeight = menu.offsetHeight || 110;
+
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let posX = x;
+  let posY = y;
+
+  if (x + menuWidth > vw) {
+    posX = vw - menuWidth - 10;
+  }
+  if (y + menuHeight > vh) {
+    posY = vh - menuHeight - 10;
+  }
+
+  menu.style.left = `${posX}px`;
+  menu.style.top = `${posY}px`;
+
+  menu.dataset.msgId = msgData.msgId;
+  menu.dataset.sender = msgData.sender;
+  menu.dataset.text = msgData.text;
+  menu.dataset.isMe = msgData.isMe;
+
+  const isMe = msgData.isMe === 'true';
+  const editBtn = document.getElementById('ctx-edit');
+  const deleteBtn = document.getElementById('ctx-delete');
+
+  if (editBtn) editBtn.style.display = isMe ? 'flex' : 'none';
+  if (deleteBtn) deleteBtn.style.display = isMe ? 'flex' : 'none';
+}
+
+// Enter Message Reply Mode
+function triggerReply(msg) {
+  state.replyingToMsg = msg;
+  state.editingMsg = null;
+
+  const previewBar = document.getElementById('input-action-preview-bar');
+  const previewTitle = document.getElementById('preview-bar-title');
+  const previewText = document.getElementById('preview-bar-text');
+  const previewIcon = document.getElementById('preview-bar-icon');
+
+  if (previewBar && previewTitle && previewText) {
+    previewTitle.textContent = `Replying to ${msg.sender}`;
+    previewText.textContent = msg.text;
+
+    if (previewIcon) {
+      previewIcon.setAttribute('data-lucide', 'corner-up-left');
+      lucide.createIcons();
+    }
+
+    previewBar.style.display = 'flex';
+  }
+
+  const textarea = document.getElementById('message-textarea');
+  if (textarea) {
+    textarea.focus();
+  }
+}
+
+// Enter Message Edit Mode
+function triggerEdit(msg) {
+  state.editingMsg = msg;
+  state.replyingToMsg = null;
+
+  const previewBar = document.getElementById('input-action-preview-bar');
+  const previewTitle = document.getElementById('preview-bar-title');
+  const previewText = document.getElementById('preview-bar-text');
+  const previewIcon = document.getElementById('preview-bar-icon');
+
+  if (previewBar && previewTitle && previewText) {
+    previewTitle.textContent = `Editing Message`;
+    previewText.textContent = msg.text;
+
+    if (previewIcon) {
+      previewIcon.setAttribute('data-lucide', 'edit-3');
+      lucide.createIcons();
+    }
+
+    previewBar.style.display = 'flex';
+  }
+
+  const textarea = document.getElementById('message-textarea');
+  if (textarea) {
+    textarea.value = msg.text;
+    textarea.focus();
+    // Auto-grow heights
+    textarea.dispatchEvent(new Event('input'));
+  }
+}
+
+// Handle Message Deletion (local or Firestore)
+function handleDeleteMessage(msgId) {
+  if (confirm("Are you sure you want to delete this message?")) {
+    const activeChatId = state.activeChatId;
+    if (activeChatId === 'calyx-bot') {
+      const activeChat = state.chats[activeChatId];
+      if (activeChat) {
+        const msg = activeChat.history.find(m => m.id === msgId);
+        if (msg) {
+          msg.isDeleted = true;
+        }
+        renderChatActiveWindow(activeChatId);
+      }
+    } else {
+      deleteMessageInFirestore(activeChatId, msgId);
+    }
+  }
+}
+
+// Cancel edit or reply mode and clear state
+function cancelInputMode() {
+  const textarea = document.getElementById('message-textarea');
+  if (state.editingMsg && textarea) {
+    textarea.value = '';
+  }
+  state.replyingToMsg = null;
+  state.editingMsg = null;
+
+  const previewBar = document.getElementById('input-action-preview-bar');
+  if (previewBar) {
+    previewBar.style.display = 'none';
+  }
+
+  if (textarea) {
+    textarea.style.height = 'auto';
+    const sendBtn = document.getElementById('btn-send-message');
+    if (sendBtn) {
+      sendBtn.disabled = textarea.value.trim() === '';
+    }
+  }
+}
+
+// Edit message inside Firestore conversation
+async function editMessageInFirestore(conversationId, messageId, newText) {
+  try {
+    const msgDocRef = doc(db, `chat_conversations/${conversationId}/messages/${messageId}`);
+    await updateDoc(msgDocRef, {
+      text: newText,
+      isEdited: true
+    });
+  } catch (err) {
+    console.error("Error editing message in Firestore:", err);
+    showToast("Failed to edit message.");
+  }
+}
+
+// Mark message as deleted inside Firestore conversation
+async function deleteMessageInFirestore(conversationId, messageId) {
+  try {
+    const msgDocRef = doc(db, `chat_conversations/${conversationId}/messages/${messageId}`);
+    await updateDoc(msgDocRef, {
+      isDeleted: true
+    });
+  } catch (err) {
+    console.error("Error deleting message in Firestore:", err);
+    showToast("Failed to delete message.");
+  }
+}
+
 
 // Render the Left Sidebar Lists
 function renderSidebar() {
@@ -918,11 +1531,20 @@ function renderChatActiveWindow(chatId) {
   wrapper.innerHTML = '';
 
   chat.history.forEach(msg => {
+    const container = document.createElement('div');
+    container.className = `message-item-container ${msg.isMe ? 'sent' : ''}`;
+    container.setAttribute('data-msg-id', msg.id);
+    container.setAttribute('data-sender', msg.isMe ? 'You' : msg.senderName);
+    container.setAttribute('data-text', msg.text || '');
+    container.setAttribute('data-is-me', msg.isMe ? 'true' : 'false');
+
     const item = document.createElement('div');
 
     if (msg.isDeleted) {
       item.className = 'message-item system';
-      item.innerHTML = `<div class="message-deleted">Message deleted by a member of this conversation <span style="font-size:10px; margin-left:8px; font-style:normal; color:var(--text-secondary);">${msg.time.split(',')[1] || msg.time}</span></div>`;
+      const deleterName = msg.isMe ? getCurrentUserName() : (msg.senderName || 'a member of this conversation');
+      item.innerHTML = `<div class="message-deleted">Message deleted by ${deleterName} <span style="font-size:10px; margin-left:8px; font-style:normal; color:var(--text-secondary);">${msg.time.split(',')[1] || msg.time}</span></div>`;
+      container.appendChild(item);
     } else {
       item.className = `message-item ${msg.isMe ? 'sent' : ''}`;
 
@@ -951,6 +1573,23 @@ function renderChatActiveWindow(chatId) {
         `;
       }
 
+      // Quoted Reply UI
+      let replyRefHtml = '';
+      if (msg.replyTo) {
+        const replyMsg = chat.history.find(m => m.id === msg.replyTo);
+        const replySender = replyMsg ? (replyMsg.isMe ? 'You' : replyMsg.senderName) : 'Message';
+        const replyText = replyMsg ? (replyMsg.isDeleted ? 'Deleted message' : replyMsg.text) : 'Original message';
+        replyRefHtml = `
+          <div class="message-bubble-reply-ref" data-target-id="${msg.replyTo}" style="cursor: pointer;">
+            <span class="reply-ref-name">${replySender}</span>
+            ${replyText}
+          </div>
+        `;
+      }
+
+      // Edited badge
+      const editedHtml = msg.isEdited ? ` <span class="message-edited-badge" style="font-size:10px; color:var(--text-secondary); margin-left:4px;">(edited)</span>` : '';
+
       item.innerHTML = `
         <div class="message-avatar-wrap">
           ${msgAvatarHtml}
@@ -959,16 +1598,40 @@ function renderChatActiveWindow(chatId) {
           <div class="message-sender-row">
             <span class="message-sender-name">${msg.isMe ? getCurrentUserName() : msg.senderName}</span>
             <span class="message-time">${msg.time}</span>
+            ${editedHtml}
           </div>
           <div class="message-bubble">
+            ${replyRefHtml}
             ${msg.text}
             ${cardHtml}
           </div>
         </div>
       `;
+
+      // Hover actions for desktop (Reply button before message bubble)
+      const hoverActions = document.createElement('div');
+      hoverActions.className = 'message-hover-actions';
+      hoverActions.innerHTML = `
+        <button class="btn-msg-reply" title="Reply">
+          <i data-lucide="corner-up-left" style="width:14px; height:14px;"></i>
+        </button>
+      `;
+
+      const contentWrap = item.querySelector('.message-content-wrap');
+      if (contentWrap) {
+        contentWrap.appendChild(hoverActions);
+      }
+
+      // Swipe reply indicator for mobile
+      const swipeIndicator = document.createElement('div');
+      swipeIndicator.className = 'swipe-reply-indicator';
+      swipeIndicator.innerHTML = `<i data-lucide="corner-up-left" style="width:16px; height:16px;"></i>`;
+      item.appendChild(swipeIndicator);
+
+      container.appendChild(item);
     }
 
-    wrapper.appendChild(item);
+    wrapper.appendChild(container);
   });
 
   // Scroll to bottom of message panel
@@ -1040,34 +1703,54 @@ function handleSendMessage() {
   const activeChat = state.chats[activeChatId];
   if (!activeChat) return;
 
-  if (activeChatId === 'calyx-bot') {
-    const now = new Date();
-    const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    // Add user message to history
-    activeChat.history.push({
-      id: 'msg-' + Date.now(),
-      senderName: getCurrentUserName(),
-      isMe: true,
-      text: text,
-      time: timeString
-    });
-
-    // Update last message preview
-    activeChat.lastMessage = `You: ${text}`;
-    activeChat.lastMessageTime = timeString;
-
-    // Render updates
-    renderHomeFeed();
-    renderChatActiveWindow(activeChatId);
-
-    // Trigger simulated response
-    setTimeout(() => {
-      simulateBotResponse(activeChatId, text);
-    }, 1000);
+  if (state.editingMsg) {
+    const msgId = state.editingMsg.id;
+    if (activeChatId === 'calyx-bot') {
+      const msg = activeChat.history.find(m => m.id === msgId);
+      if (msg) {
+        msg.text = text;
+        msg.isEdited = true;
+      }
+      renderChatActiveWindow(activeChatId);
+    } else {
+      editMessageInFirestore(activeChatId, msgId, text);
+    }
+    cancelInputMode();
   } else {
-    // Send to Firestore
-    sendMessageToFirestore(activeChatId, text);
+    const replyToId = state.replyingToMsg ? state.replyingToMsg.id : null;
+
+    if (activeChatId === 'calyx-bot') {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const newMsg = {
+        id: 'msg-' + Date.now(),
+        senderName: getCurrentUserName(),
+        isMe: true,
+        text: text,
+        time: timeString
+      };
+      if (replyToId) {
+        newMsg.replyTo = replyToId;
+      }
+      activeChat.history.push(newMsg);
+
+      // Update last message preview
+      activeChat.lastMessage = `You: ${text}`;
+      activeChat.lastMessageTime = timeString;
+
+      // Render updates
+      renderHomeFeed();
+      renderChatActiveWindow(activeChatId);
+
+      // Trigger simulated response
+      setTimeout(() => {
+        simulateBotResponse(activeChatId, text);
+      }, 1000);
+    } else {
+      sendMessageToFirestore(activeChatId, text, replyToId);
+    }
+    cancelInputMode();
   }
 
   textarea.value = '';
@@ -1310,7 +1993,10 @@ function setupMessagesListener(chatId) {
         senderName: data.senderName,
         isMe: data.senderUid === auth.currentUser?.uid,
         text: data.text,
-        time: timeString
+        time: timeString,
+        isDeleted: data.isDeleted || false,
+        isEdited: data.isEdited || false,
+        replyTo: data.replyTo || null
       });
     });
 
@@ -1413,18 +2099,22 @@ async function startDirectMessage(targetUser) {
 }
 
 // Send Message to Firestore Database
-async function sendMessageToFirestore(conversationId, text) {
+async function sendMessageToFirestore(conversationId, text, replyTo = null) {
   const myUser = auth.currentUser;
   if (!myUser) return;
 
   try {
     const messagesColl = collection(db, `chat_conversations/${conversationId}/messages`);
-    await addDoc(messagesColl, {
+    const messageObj = {
       senderUid: myUser.uid,
       senderName: myUser.displayName || myUser.email.split('@')[0],
       text: text,
       time: serverTimestamp()
-    });
+    };
+    if (replyTo) {
+      messageObj.replyTo = replyTo;
+    }
+    await addDoc(messagesColl, messageObj);
 
     const convDocRef = doc(db, 'chat_conversations', conversationId);
     const updateData = {

@@ -48,12 +48,10 @@ onAuthStateChanged(auth, (user) => {
           profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
         }
 
-        if (!profileBtn.dataset.hasSignoutListener) {
-          profileBtn.dataset.hasSignoutListener = 'true';
+        if (!profileBtn.dataset.hasSettingsListener) {
+          profileBtn.dataset.hasSettingsListener = 'true';
           profileBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to sign out?')) {
-              signOut(auth).then(() => location.reload());
-            }
+            window.dispatchEvent(new CustomEvent('open-profile-settings'));
           });
         }
       }

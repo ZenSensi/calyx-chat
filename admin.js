@@ -516,10 +516,19 @@ btnToggleTicketStatus.addEventListener('click', async () => {
   const newStatus = currentStatus === 'open' ? 'resolved' : 'open';
 
   try {
+    // Add automated support message to messages subcollection
+    const messagesColl = collection(db, `chat_conversations/${ticketId}/messages`);
+    await addDoc(messagesColl, {
+      senderUid: 'support-admin',
+      senderName: 'Calyx Support',
+      text: newStatus === 'resolved' ? 'Ticket Resolved' : 'Ticket Reopened',
+      time: serverTimestamp()
+    });
+
     const convDocRef = doc(db, 'chat_conversations', ticketId);
     await setDoc(convDocRef, {
       status: newStatus,
-      lastMessage: `Status updated to: ${newStatus === 'open' ? 'Open' : 'Resolved'}`,
+      lastMessage: newStatus === 'resolved' ? 'Calyx Support: Ticket Resolved' : 'Calyx Support: Ticket Reopened',
       lastMessageTime: serverTimestamp()
     }, { merge: true });
 

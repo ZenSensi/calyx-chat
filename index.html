@@ -483,6 +483,19 @@
               <i data-lucide="plus"></i>
             </button>
             <div class="chat-input-container">
+              <!-- Edit / Reply Preview Bar -->
+              <div class="input-action-preview-bar" id="input-action-preview-bar" style="display: none;">
+                <div class="preview-bar-details">
+                  <i data-lucide="corner-up-left" id="preview-bar-icon" style="width: 14px; height: 14px;"></i>
+                  <div class="preview-text-col">
+                    <span class="preview-bar-title" id="preview-bar-title">Replying to ZenSensi</span>
+                    <span class="preview-bar-text" id="preview-bar-text">Message preview snippet...</span>
+                  </div>
+                </div>
+                <button type="button" class="preview-bar-close-btn" id="preview-bar-close-btn" aria-label="Cancel">
+                  <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                </button>
+              </div>
               <textarea id="message-textarea" rows="1" placeholder="History is on - Message Figma..." autocomplete="off"></textarea>
               <div class="chat-input-actions">
                 <div class="formatting-tools">
@@ -612,10 +625,77 @@
     </div>
   </div>
 
+  <!-- Profile Settings Modal -->
+  <div class="modal-overlay" id="profile-settings-modal" style="display: none;">
+    <div class="modal-content glass-panel fade-in">
+      <div class="modal-header">
+        <h3 class="modal-title">Profile Settings</h3>
+        <button type="button" class="modal-close-btn" id="profile-modal-close" aria-label="Close modal">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <p class="modal-description">Update your personal information, profile picture, and account settings.</p>
+      
+      <form class="modal-form" id="profile-settings-form">
+        <!-- Profile Picture Uploader -->
+        <div class="form-group" style="display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 20px;">
+          <label>Profile Picture</label>
+          <div class="profile-pfp-container" id="profile-pfp-preview-container" style="position: relative; width: 80px; height: 80px; border-radius: 50%; background: var(--bg-panel-light); border: 2px dashed rgba(251, 191, 36, 0.4); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; overflow: hidden;">
+            <div id="profile-pfp-fallback" style="font-size: 24px; font-weight: 700; color: var(--primary-yellow);">AM</div>
+            <img id="profile-pfp-img" src="" alt="Profile Preview" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+            <div class="profile-pfp-hover-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); opacity: 0; display: flex; align-items: center; justify-content: center; color: #fff; transition: opacity 0.2s;">
+              <i data-lucide="camera" style="width: 20px; height: 20px;"></i>
+            </div>
+          </div>
+          <input type="file" id="profile-pfp-input" accept="image/*" style="display: none;">
+          <div style="display: flex; gap: 10px;">
+            <button type="button" class="btn-glass" id="btn-upload-photo" style="padding: 6px 12px; font-size: 11px;">Upload Photo</button>
+            <button type="button" class="btn-glass danger" id="btn-remove-photo" style="padding: 6px 12px; font-size: 11px; display: none;">Remove</button>
+          </div>
+        </div>
+
+        <!-- Username Input -->
+        <div class="form-group">
+          <label for="profile-display-name">Username / Display Name</label>
+          <input type="text" id="profile-display-name" placeholder="Enter username..." required autocomplete="off" style="width: 100%;">
+          <span style="font-size: 11px; color: var(--text-secondary); margin-top: 4px; display: block;">Username helps other users to find and identify you on Calyx Chat.</span>
+        </div>
+
+        <!-- Readonly Email -->
+        <div class="form-group">
+          <label>Email Address</label>
+          <input type="text" id="profile-email-readonly" readonly style="width: 100%; opacity: 0.6; cursor: not-allowed; background: rgba(255, 255, 255, 0.03);">
+        </div>
+
+        <div class="modal-actions" style="margin-top: 24px; display: flex; align-items: center; justify-content: space-between; width: 100%;">
+          <button type="button" class="btn-glass danger" id="btn-profile-signout" style="margin-right: auto;">Sign Out</button>
+          <button type="button" class="btn-glass" id="btn-profile-cancel">Cancel</button>
+          <button type="submit" class="btn-premium" id="btn-profile-submit">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div class="toast-notification glass-panel fade-in" id="toast" style="display: none;">
     <i data-lucide="info" class="toast-icon"></i>
     <span id="toast-message">Message sent</span>
+  </div>
+
+  <!-- Floating Message Context Menu -->
+  <div class="message-context-menu" id="message-context-menu" style="display: none;">
+    <button class="context-menu-item" id="ctx-reply">
+      <i data-lucide="corner-up-left"></i>
+      <span>Reply</span>
+    </button>
+    <button class="context-menu-item" id="ctx-edit">
+      <i data-lucide="edit-3"></i>
+      <span>Edit Message</span>
+    </button>
+    <button class="context-menu-item danger" id="ctx-delete">
+      <i data-lucide="trash-2"></i>
+      <span>Delete Message</span>
+    </button>
   </div>
 
   <script type="module" src="/auth.js"></script>
