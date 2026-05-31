@@ -647,6 +647,46 @@ function setupEventListeners() {
       }
     });
   }
+
+  // Bot option buttons event listeners
+  const botOptionsWrapper = document.getElementById('bot-options-wrapper');
+  if (botOptionsWrapper) {
+    botOptionsWrapper.querySelectorAll('.bot-option-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const question = btn.getAttribute('data-question');
+        if (!question) return;
+
+        const activeChatId = 'calyx-bot';
+        const activeChat = state.chats[activeChatId];
+        if (!activeChat) return;
+
+        const now = new Date();
+        const timeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        // Add user message to history
+        activeChat.history.push({
+          id: 'msg-' + Date.now(),
+          senderName: getCurrentUserName(),
+          isMe: true,
+          text: question,
+          time: timeString
+        });
+
+        // Update last message preview
+        activeChat.lastMessage = `You: ${question}`;
+        activeChat.lastMessageTime = timeString;
+
+        // Render updates
+        renderHomeFeed();
+        renderChatActiveWindow(activeChatId);
+
+        // Trigger simulated response
+        setTimeout(() => {
+          simulateBotResponse(activeChatId, question);
+        }, 1000);
+      });
+    });
+  }
 }
 
 // Render the Left Sidebar Lists
@@ -937,12 +977,30 @@ function renderChatActiveWindow(chatId) {
     msgContainer.scrollTop = msgContainer.scrollHeight;
   }, 50);
 
+  // Toggle bot options or normal input
+  const botOptionsWrapper = document.getElementById('bot-options-wrapper');
+  const normalChatInputWrapper = document.getElementById('normal-chat-input-wrapper');
+  if (botOptionsWrapper && normalChatInputWrapper) {
+    if (chatId === 'calyx-bot') {
+      botOptionsWrapper.style.display = 'block';
+      normalChatInputWrapper.style.display = 'none';
+    } else {
+      botOptionsWrapper.style.display = 'none';
+      normalChatInputWrapper.style.display = 'flex';
+    }
+  }
+
   // Setup textarea placeholder
   const textarea = document.getElementById('message-textarea');
-  textarea.placeholder = `History is on - Message ${chat.name}...`;
-  textarea.value = '';
-  textarea.style.height = 'auto';
-  document.getElementById('btn-send-message').disabled = true;
+  if (textarea) {
+    textarea.placeholder = `History is on - Message ${chat.name}...`;
+    textarea.value = '';
+    textarea.style.height = 'auto';
+  }
+  const sendBtn = document.getElementById('btn-send-message');
+  if (sendBtn) {
+    sendBtn.disabled = true;
+  }
 
   lucide.createIcons();
 }
@@ -1030,9 +1088,15 @@ function simulateBotResponse(chatId, userText) {
   const normText = userText.toLowerCase();
 
   if (chatId === 'calyx-bot') {
-    if (normText.includes('hello') || normText.includes('hi') || normText.includes('hey')) {
-      replyText = `Hello ${getCurrentUserName()}! Great to chat. I am fully customized with the yellow and teal Calyx Sigma styling. Try asking me about 'colors' or 'features'!`;
-    } else if (normText.includes('color') || normText.includes('yellow') || normText.includes('blue')) {
+    if (normText.includes('what is calyx chat')) {
+      replyText = "Calyx Chat is a state-of-the-art secure platform designed for seamless real-time communication and collaboration. Built with a stunning gold and teal visual language, it supports direct messages, team spaces, and custom integrations while keeping your privacy intact!";
+    } else if (normText.includes('support chat') || normText.includes('support ticket')) {
+      replyText = "Support chat allows you to create direct support tickets inside Calyx Chat. If you encounter any issues or have questions, you can open a ticket, and our support agents (or helper bots) will assist you right away!";
+    } else if (normText.includes('support the developer') || normText.includes('support developer')) {
+      replyText = "You can support the developer by sharing Calyx Chat with your team, leaving feedback on GitHub, or checking out ZenSensi's developer profile for sponsorship and contributions. Every bit of support helps us improve the platform!";
+    } else if (normText.includes('hello') || normText.includes('hi') || normText.includes('hey')) {
+      replyText = `Hello ${getCurrentUserName()}! Great to chat. I am Calyx Intro Bot, developed by Arnabh aka ZenSensi. Click one of the pre-built questions below to learn more about Calyx Chat!`;
+    } else if (normText.includes('color') || normText.includes('yellow') || normText.includes('blue') || normText.includes('theme') || normText.includes('palette')) {
       replyText = "Per your configuration, the primary theme color is now a vibrant premium gold/yellow (#fbbf24) combined with Calyx's classic cyan/teal (#00d2ff) accents. The standard blues have been completely replaced!";
     } else if (normText.includes('feature') || normText.includes('chat') || normText.includes('workspace')) {
       replyText = "This Calyx Chat application features a fully responsive 4-column layout: collapsible left sidebar, center home chat feed, active message window, and far-right Google add-on utilities.";
@@ -1178,6 +1242,11 @@ function setupRealtimeListeners() {
           }
         ]
       };
+    }
+    // Preserve optimistic support chat if it exists in state
+    const supportId = `support_${user.uid}`;
+    if (state.chats && state.chats[supportId]) {
+      newChats[supportId] = state.chats[supportId];
     }
 
     snapshot.forEach((docSnap) => {

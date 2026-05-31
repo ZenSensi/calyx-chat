@@ -478,7 +478,7 @@
           </div>
 
           <!-- Chat Input Area -->
-          <div class="chat-input-wrapper">
+          <div class="chat-input-wrapper" id="normal-chat-input-wrapper">
             <button type="button" class="chat-btn-plus" id="input-plus-btn" title="Add integration" aria-label="Add integration">
               <i data-lucide="plus"></i>
             </button>
@@ -504,6 +504,34 @@
                 </div>
                 <button type="button" id="btn-send-message" class="send-message-btn" title="Send message" aria-label="Send message" disabled>
                   <i data-lucide="send"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bot Pre-built Option Buttons -->
+          <div class="bot-options-wrapper" id="bot-options-wrapper" style="display: none;">
+            <div class="bot-options-container">
+              <div class="bot-options-header">
+                <i data-lucide="bot" class="bot-header-icon"></i>
+                <span class="bot-options-title">Ask Calyx Intro Bot:</span>
+              </div>
+              <div class="bot-options-grid">
+                <button class="bot-option-btn" data-question="What is Calyx Chat">
+                  <i data-lucide="help-circle"></i>
+                  <span>What is Calyx Chat</span>
+                </button>
+                <button class="bot-option-btn" data-question="What is Support chat">
+                  <i data-lucide="message-square"></i>
+                  <span>What is Support chat</span>
+                </button>
+                <button class="bot-option-btn" data-question="How to support the developer">
+                  <i data-lucide="heart"></i>
+                  <span>How to support the developer</span>
+                </button>
+                <button class="bot-option-btn" data-question="Customize theme color">
+                  <i data-lucide="palette"></i>
+                  <span>Customize theme color</span>
                 </button>
               </div>
             </div>
