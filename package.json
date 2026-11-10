@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:rules": "npx -y firebase-tools@13.29.0 emulators:exec --only firestore --project demo-calyx \"node tests/firestore-rules.test.mjs\"",
+    "deploy:rules": "npm run test:rules && npx -y firebase-tools@13.29.0 deploy --only firestore:rules --project calyx-meet"
   },
   "devDependencies": {
     "vite": "^5.2.0"
