@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
 } from './firebase-admin.js';
+import { esc } from './html.js';
 
 import {
   collection,
@@ -20,6 +21,7 @@ import {
   orderBy,
   onSnapshot,
   doc,
+  getDoc,
   setDoc,
   addDoc,
   serverTimestamp,
@@ -134,10 +136,27 @@ const metaUserUid = document.getElementById('meta-user-uid');
 const metaTicketUid = document.getElementById('meta-ticket-uid');
 const operatorNotes = document.getElementById('operator-notes');
 
+// Render static icons on the login screen (other createIcons calls only run after sign-in)
+lucide.createIcons();
+
 // ── Auth Handling ────────────────────────────────────────────────────────────
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
-    // Verified Admin User logged in
+    // UI gate only; firestore.rules is what actually blocks non-admins from ticket data.
+    let isAdmin = false;
+    try {
+      isAdmin = (await getDoc(doc(db, 'admins', user.uid))).exists();
+    } catch (err) {
+      console.error('Admin check failed:', err);
+    }
+    if (!isAdmin) {
+      // Don't sign out: the chat app shares this session, so that would log the user out there too.
+      showLoginScreen();
+      signinError.textContent = `${user.email || 'This account'} is not an operator account. Sign in with an operator account to use the support console.`;
+      signinError.hidden = false;
+      return;
+    }
+
     if (authContainer) authContainer.style.display = 'none';
     if (gridBg) gridBg.style.display = 'block';
     if (glowBg) glowBg.style.display = 'block';
@@ -151,23 +170,26 @@ onAuthStateChanged(auth, (user) => {
     // Load support tickets queue
     setupTicketsQueueListener();
   } else {
-    // Logged out
-    if (authContainer) authContainer.style.display = 'flex';
-    if (gridBg) gridBg.style.display = 'none';
-    if (glowBg) glowBg.style.display = 'none';
-    if (appContainer) appContainer.style.display = 'none';
-
-    // Clear subscription
-    if (ticketsListener) {
-      ticketsListener();
-      ticketsListener = null;
-    }
-    if (messagesListener) {
-      messagesListener();
-      messagesListener = null;
-    }
+    showLoginScreen();
   }
 });
+
+function showLoginScreen() {
+  if (authContainer) authContainer.style.display = 'flex';
+  if (gridBg) gridBg.style.display = 'none';
+  if (glowBg) glowBg.style.display = 'none';
+  if (appContainer) appContainer.style.display = 'none';
+
+  // Clear subscription
+  if (ticketsListener) {
+    ticketsListener();
+    ticketsListener = null;
+  }
+  if (messagesListener) {
+    messagesListener();
+    messagesListener = null;
+  }
+}
 
 // Email/Password Submit
 if (signinForm) {
@@ -322,16 +344,23 @@ function renderTicketsList() {
 
     const email = client.email || 'No email';
 
+    let avatarHtml = '';
+    if (client.photoURL) {
+      avatarHtml = `<div class="ticket-avatar" style="padding: 0; background: transparent; border: none; width: 32px; height: 32px;"><img src="${esc(client.photoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+    } else {
+      avatarHtml = `<div class="ticket-avatar ${esc(avatarColor)}">${esc(initials)}</div>`;
+    }
+
     li.innerHTML = `
-      <div class="ticket-avatar ${avatarColor}">${initials}</div>
+      ${avatarHtml}
       <div class="ticket-details">
         <div class="ticket-row-top">
-          <span class="ticket-username">${name}</span>
+          <span class="ticket-username">${esc(name)}</span>
           <span class="ticket-pill ${isTicketOpen ? 'open' : 'resolved'}">${isTicketOpen ? 'Open' : 'Resolved'}</span>
         </div>
-        <div class="ticket-email" style="font-size: 11px; color: var(--primary-teal); margin: 2px 0;">${email}</div>
+        <div class="ticket-email" style="font-size: 11px; color: var(--primary-teal); margin: 2px 0;">${esc(email)}</div>
         <div class="ticket-row-bottom">
-          <span class="ticket-preview">${lastMsgSnippet}</span>
+          <span class="ticket-preview">${esc(lastMsgSnippet)}</span>
         </div>
       </div>
     `;
@@ -404,7 +433,11 @@ function updateTicketUI(ticketId) {
   // Active chat header
   activeChatTitle.textContent = name;
   activeChatUserEmail.textContent = email;
-  activeChatAvatar.innerHTML = `<div class="message-avatar ${avatarColor}" style="width:36px; height:36px; font-size:13px; font-weight:700; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#0f172a;">${initials}</div>`;
+  if (client.photoURL) {
+    activeChatAvatar.innerHTML = `<div class="message-avatar" style="width:36px; height:36px; padding: 0; background: transparent; border: none;"><img src="${esc(client.photoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+  } else {
+    activeChatAvatar.innerHTML = `<div class="message-avatar ${esc(avatarColor)}" style="width:36px; height:36px; font-size:13px; font-weight:700; border-radius:50%; display:flex; align-items:center; justify-content:center; color:#0f172a;">${esc(initials)}</div>`;
+  }
 
   activeTicketStatus.textContent = isTicketOpen ? 'Open' : 'Resolved';
   activeTicketStatus.className = `ticket-status-badge ${isTicketOpen ? 'open' : 'resolved'}`;
@@ -448,20 +481,26 @@ function setupMessagesListener(ticketId) {
       const item = document.createElement('div');
       item.className = `message-item ${isAdminMsg ? 'sent' : ''}`;
 
-      const initials = isAdminMsg ? 'SU' : activeChatTitle.textContent.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-      const avatarColor = isAdminMsg ? 'yellow' : (state.tickets[ticketId]?.participantDetails?.[(state.tickets[ticketId]?.participants || []).find(p => p !== 'support-admin')]?.avatarColor || 'teal');
+      let msgAvatarHtml = '';
+      if (data.senderPhotoURL) {
+        msgAvatarHtml = `<div class="message-avatar" style="padding: 0; background: transparent; border: none;"><img src="${esc(data.senderPhotoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+      } else {
+        const initials = isAdminMsg ? 'SU' : activeChatTitle.textContent.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+        const avatarColor = isAdminMsg ? 'yellow' : (state.tickets[ticketId]?.participantDetails?.[(state.tickets[ticketId]?.participants || []).find(p => p !== 'support-admin')]?.avatarColor || 'teal');
+        msgAvatarHtml = `<div class="message-avatar ${esc(avatarColor)}">${esc(initials)}</div>`;
+      }
 
       item.innerHTML = `
         <div class="message-avatar-wrap">
-          <div class="message-avatar ${avatarColor}">${initials}</div>
+          ${msgAvatarHtml}
         </div>
         <div class="message-content-wrap">
           <div class="message-sender-row">
-            <span class="message-sender-name">${data.senderName}</span>
-            <span class="message-time">${timeString}</span>
+            <span class="message-sender-name">${esc(data.senderName)}</span>
+            <span class="message-time">${esc(timeString)}</span>
           </div>
           <div class="message-bubble">
-            ${data.text}
+            ${esc(data.text)}
           </div>
         </div>
       `;

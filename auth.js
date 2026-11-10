@@ -15,7 +15,8 @@ import {
   signOut,
 } from './firebase.js';
 
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
+import { esc } from './html.js';
 
 // ── Redirect if already logged in ────────────────────────────────────────────
 onAuthStateChanged(auth, (user) => {
@@ -37,7 +38,7 @@ onAuthStateChanged(auth, (user) => {
       const profileBtn = document.getElementById('user-profile-btn');
       if (profileBtn) {
         if (user.photoURL) {
-          profileBtn.innerHTML = `<img src="${user.photoURL}" alt="User Profile Picture" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+          profileBtn.innerHTML = `<img src="${esc(user.photoURL)}" alt="User Profile Picture" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
           profileBtn.style.padding = '0';
           profileBtn.style.background = 'transparent';
           profileBtn.style.border = 'none';
@@ -45,7 +46,7 @@ onAuthStateChanged(auth, (user) => {
           const initials = user.displayName
             ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
             : (user.email ? user.email.slice(0, 2).toUpperCase() : 'AM');
-          profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
+          profileBtn.innerHTML = `<span aria-hidden="true">${esc(initials)}</span>`;
         }
 
         if (!profileBtn.dataset.hasSettingsListener) {
@@ -73,13 +74,33 @@ onAuthStateChanged(auth, (user) => {
           const colors = ['yellow', 'teal', 'red', 'purple', 'green'];
           avatarColor = colors[Math.floor(Math.random() * colors.length)];
         }
+        const displayName = user.displayName || user.email.split('@')[0];
+        const photoURL = user.photoURL || null;
         await setDoc(userDocRef, {
           uid: user.uid,
-          displayName: user.displayName || user.email.split('@')[0],
+          displayName,
           email: user.email,
+          photoURL,
           avatarColor,
           lastActive: serverTimestamp(),
         }, { merge: true });
+
+        const conversationsQuery = query(
+          collection(db, 'chat_conversations'),
+          where('participants', 'array-contains', user.uid)
+        );
+        const convsSnap = await getDocs(conversationsQuery);
+        for (const convDoc of convsSnap.docs) {
+          const convData = convDoc.data();
+          const details = convData.participantDetails || {};
+          if (!details[user.uid]) {
+            details[user.uid] = {};
+          }
+          details[user.uid].displayName = displayName;
+          details[user.uid].photoURL = photoURL;
+          details[user.uid].avatarColor = avatarColor;
+          await updateDoc(convDoc.ref, { participantDetails: details });
+        }
       } catch (err) {
         console.warn('Firestore user sync failed (non-critical):', err);
       }

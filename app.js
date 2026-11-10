@@ -1,6 +1,7 @@
 
 // Calyx Chat Application Logic
 import { auth, db, updateProfile, signOut } from './firebase.js';
+import { esc } from './html.js';
 import {
   collection,
   getDocs,
@@ -14,6 +15,7 @@ import {
   onSnapshot,
   serverTimestamp,
   updateDoc,
+  arrayUnion,
 } from 'firebase/firestore';
 
 // Real-time listener references (stored so they can be unsubscribed)
@@ -75,6 +77,28 @@ function getCurrentUserInitials() {
   return user?.displayName
     ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : (user?.email ? user.email.slice(0, 2).toUpperCase() : 'ME');
+}
+
+async function updateParticipantDetailsInAllConversations(uid, displayName, photoUrl) {
+  try {
+    const conversationsQuery = query(
+      collection(db, 'chat_conversations'),
+      where('participants', 'array-contains', uid)
+    );
+    const convsSnap = await getDocs(conversationsQuery);
+    for (const convDoc of convsSnap.docs) {
+      const convData = convDoc.data();
+      const details = convData.participantDetails || {};
+      if (!details[uid]) {
+        details[uid] = {};
+      }
+      details[uid].displayName = displayName;
+      details[uid].photoURL = photoUrl || null;
+      await updateDoc(convDoc.ref, { participantDetails: details });
+    }
+  } catch (err) {
+    console.error("Error updating participant details in conversations:", err);
+  }
 }
 
 function getStarredChatIds() {
@@ -319,29 +343,8 @@ function setupEventListeners() {
       return;
     }
 
-    const queryVal = nameInput ? nameInput.value.trim().toLowerCase() : '';
-
     try {
-      const usersSnap = await getDocs(collection(db, 'users'));
-      const matches = [];
-      const myUid = auth.currentUser?.uid;
-
-      usersSnap.forEach(docSnap => {
-        const u = docSnap.data();
-        if (u.uid === myUid) return;
-
-        if (queryVal.length < 1) {
-          matches.push(u);
-        } else {
-          const nameMatch = u.displayName?.toLowerCase().includes(queryVal);
-          const emailMatch = u.email?.toLowerCase().includes(queryVal);
-          if (nameMatch || emailMatch) {
-            matches.push(u);
-          }
-        }
-      });
-
-      renderSearchResults(matches);
+      renderSearchResults(await findUsers(nameInput ? nameInput.value : ''));
     } catch (err) {
       console.error("Error querying users collection:", err);
     }
@@ -573,71 +576,120 @@ function setupEventListeners() {
 
       const supportId = `support_${myUser.uid}`;
 
-      // If the support chat is not in our loaded chats list, create it in Firestore
       if (!state.chats[supportId]) {
-        // Create optimistic support chat in state so it opens instantly
-        state.chats[supportId] = {
-          id: supportId,
-          type: 'support',
-          name: 'Support Chat',
-          avatarColor: 'teal',
-          lastMessage: 'Opening support channel...',
-          lastMessageTime: 'Now',
-          status: 'open',
-          history: [
-            {
-              id: 'support-welcome',
-              senderName: 'Calyx Support',
-              isMe: false,
-              text: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
-              time: 'Now'
-            }
-          ]
-        };
+        try {
+          const docRef = doc(db, 'chat_conversations', supportId);
+          const docSnap = await getDoc(docRef);
 
-        // Render it instantly
-        renderSidebar();
-        renderHomeFeed();
-
-        // Also create it in Firestore in the background
-        (async () => {
-          try {
-            const docRef = doc(db, 'chat_conversations', supportId);
-            await setDoc(docRef, {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            const timeString = formatTimestamp(data.lastMessageTime);
+            state.chats[supportId] = {
               id: supportId,
               type: 'support',
               name: 'Support Chat',
               avatarColor: 'teal',
-              participants: [myUser.uid, 'support-admin'],
-              participantDetails: {
-                [myUser.uid]: {
-                  displayName: myUser.displayName || myUser.email.split('@')[0],
-                  email: myUser.email,
-                  avatarColor: 'teal'
-                }
-              },
-              lastMessage: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
-              lastMessageTime: serverTimestamp(),
-              createdTime: serverTimestamp(),
-              status: 'open'
-            });
-
-            // Add a welcome message in subcollection messages
-            const msgColl = collection(db, `chat_conversations/${supportId}/messages`);
-            await addDoc(msgColl, {
-              senderUid: 'support-admin',
-              senderName: 'Calyx Support',
-              text: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
-              time: serverTimestamp()
-            });
-          } catch (err) {
-            console.error("Error creating support channel:", err);
+              lastMessage: data.lastMessage || 'Opening support channel...',
+              lastMessageTime: timeString,
+              status: data.status || 'open',
+              ticketExists: true,
+              history: []
+            };
+          } else {
+            state.chats[supportId] = {
+              id: supportId,
+              type: 'support',
+              name: 'Support Chat',
+              avatarColor: 'teal',
+              lastMessage: 'Ticket is closed. Click Open Ticket to start.',
+              lastMessageTime: 'Now',
+              status: 'closed',
+              ticketExists: false,
+              history: []
+            };
           }
-        })();
+        } catch (err) {
+          console.error("Error checking support chat:", err);
+          state.chats[supportId] = {
+            id: supportId,
+            type: 'support',
+            name: 'Support Chat',
+            avatarColor: 'teal',
+            lastMessage: 'Ticket is closed. Click Open Ticket to start.',
+            lastMessageTime: 'Now',
+            status: 'closed',
+            ticketExists: false,
+            history: []
+          };
+        }
       }
 
-      // Switch active chat to support
       switchActiveChat(supportId);
+    });
+  }
+
+  // Open Ticket Button listener
+  const btnOpenTicket = document.getElementById('btn-open-ticket');
+  if (btnOpenTicket) {
+    btnOpenTicket.addEventListener('click', async () => {
+      const myUser = auth.currentUser;
+      if (!myUser) return;
+
+      const supportId = `support_${myUser.uid}`;
+      const chat = state.chats[supportId];
+      if (!chat) return;
+
+      btnOpenTicket.disabled = true;
+      btnOpenTicket.innerHTML = `<span>Opening ticket...</span>`;
+
+      try {
+        const docRef = doc(db, 'chat_conversations', supportId);
+        
+        await setDoc(docRef, {
+          id: supportId,
+          type: 'support',
+          name: 'Support Chat',
+          avatarColor: 'teal',
+          participants: [myUser.uid, 'support-admin'],
+          participantDetails: {
+            [myUser.uid]: {
+              displayName: myUser.displayName || myUser.email.split('@')[0],
+              email: myUser.email,
+              photoURL: myUser.photoURL || null,
+              avatarColor: 'teal'
+            }
+          },
+          lastMessage: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
+          lastMessageTime: serverTimestamp(),
+          createdTime: serverTimestamp(),
+          status: 'open'
+        });
+
+        const msgColl = collection(db, `chat_conversations/${supportId}/messages`);
+        await addDoc(msgColl, {
+          senderUid: 'support-admin',
+          senderName: 'Calyx Support',
+          text: 'Welcome to Calyx Support! A member of our team will assist you shortly.',
+          time: serverTimestamp()
+        });
+
+        chat.ticketExists = true;
+        chat.status = 'open';
+        chat.lastMessage = 'Welcome to Calyx Support! A member of our team will assist you shortly.';
+        
+        btnOpenTicket.disabled = false;
+        btnOpenTicket.innerHTML = `<i data-lucide="ticket"></i><span>Open Ticket</span>`;
+        lucide.createIcons();
+
+        switchActiveChat(supportId);
+        showToast("Ticket opened successfully!");
+      } catch (err) {
+        console.error("Error opening support ticket:", err);
+        showToast("Failed to open ticket.");
+        btnOpenTicket.disabled = false;
+        btnOpenTicket.innerHTML = `<i data-lucide="ticket"></i><span>Open Ticket</span>`;
+        lucide.createIcons();
+      }
     });
   }
 
@@ -648,6 +700,42 @@ function setupEventListeners() {
       if (state.activeChatId) {
         toggleChatStarred(state.activeChatId);
       }
+    });
+  }
+
+  // Add Members (spaces only)
+  const addMemberBtn = document.getElementById('btn-add-member');
+  const addMemberModal = document.getElementById('add-member-modal');
+  const addMemberInput = document.getElementById('add-member-input');
+  if (addMemberBtn && addMemberModal && addMemberInput) {
+    const searchMembers = async () => {
+      const chat = state.chats[state.activeChatId];
+      if (!chat || chat.type !== 'space') return;
+      try {
+        const matches = await findUsers(addMemberInput.value, chat.participants);
+        renderSearchResults(matches, 'add-member-results', async (user) => {
+          if (await addMemberToSpace(chat.id, user)) closeAddMember();
+        });
+      } catch (err) {
+        console.error('Error searching users to add:', err);
+      }
+    };
+    const closeAddMember = () => {
+      addMemberModal.style.display = 'none';
+      addMemberInput.value = '';
+      document.getElementById('add-member-results').style.display = 'none';
+    };
+
+    addMemberBtn.addEventListener('click', () => {
+      if (state.chats[state.activeChatId]?.type !== 'space') return;
+      addMemberModal.style.display = 'flex';
+      addMemberInput.focus();
+      searchMembers();
+    });
+    addMemberInput.addEventListener('input', searchMembers);
+    document.getElementById('add-member-close').addEventListener('click', closeAddMember);
+    addMemberModal.addEventListener('click', (e) => {
+      if (e.target === addMemberModal) closeAddMember();
     });
   }
 
@@ -866,7 +954,7 @@ function setupEventListeners() {
             photoURL: photoUrl || null
           });
 
-          // 2. Update Firestore Doc
+           // 2. Update Firestore Doc
           const userDocRef = doc(db, 'users', user.uid);
           await setDoc(userDocRef, {
             displayName: displayName,
@@ -874,17 +962,19 @@ function setupEventListeners() {
             lastActive: serverTimestamp()
           }, { merge: true });
 
+          await updateParticipantDetailsInAllConversations(user.uid, displayName, photoUrl);
+
           // 3. Update top-right avatar UI
           const profileBtn = document.getElementById('user-profile-btn');
           if (profileBtn) {
             if (photoUrl) {
-              profileBtn.innerHTML = `<img src="${photoUrl}" alt="User Profile Picture" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+              profileBtn.innerHTML = `<img src="${esc(photoUrl)}" alt="User Profile Picture" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
               profileBtn.style.padding = '0';
               profileBtn.style.background = 'transparent';
               profileBtn.style.border = 'none';
             } else {
               const initials = getCurrentUserInitials();
-              profileBtn.innerHTML = `<span aria-hidden="true">${initials}</span>`;
+              profileBtn.innerHTML = `<span aria-hidden="true">${esc(initials)}</span>`;
               profileBtn.removeAttribute('style'); // reset style changes
             }
           }
@@ -1343,9 +1433,9 @@ function renderSidebar() {
     li.innerHTML = `
       <div style="position: relative; display: flex; align-items: center;">
         ${iconHtml}
-        ${chat.type === 'dm' ? `<span class="feed-status-dot ${chat.status}" style="bottom:-2px; right:-2px; width:7px; height:7px; border-width:1px;"></span>` : ''}
+        ${chat.type === 'dm' ? `<span class="feed-status-dot ${esc(chat.status)}" style="bottom:-2px; right:-2px; width:7px; height:7px; border-width:1px;"></span>` : ''}
       </div>
-      <span>${chat.name}</span>
+      <span>${esc(chat.name)}</span>
       <div style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
         ${isStarred ? `<i data-lucide="star" style="width: 12px; height: 12px; fill: var(--primary-yellow); stroke: var(--primary-yellow); flex-shrink: 0;"></i>` : ''}
         ${chat.unreadCount > 0 ? `<span class="unread-badge">${chat.unreadCount}</span>` : ''}
@@ -1435,25 +1525,30 @@ function renderHomeFeed(searchQuery = '') {
     const initials = chat.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
     // App specific avatar template
-    let avatarContent = `<div class="feed-avatar ${chat.avatarColor}">${initials}</div>`;
+    let avatarContent = '';
+    if (chat.avatarPhotoURL) {
+      avatarContent = `<div class="feed-avatar" style="padding: 0; background: transparent; border: none;"><img src="${esc(chat.avatarPhotoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+    } else {
+      avatarContent = `<div class="feed-avatar ${esc(chat.avatarColor)}">${esc(initials)}</div>`;
+    }
 
     const isStarred = isChatStarred(chat.id);
 
     item.innerHTML = `
       <div class="feed-avatar-wrap">
         ${avatarContent}
-        ${chat.type === 'dm' ? `<span class="feed-status-dot ${chat.status}"></span>` : ''}
+        ${chat.type === 'dm' ? `<span class="feed-status-dot ${esc(chat.status)}"></span>` : ''}
       </div>
       <div class="feed-item-info">
         <div class="feed-item-header">
           <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-            <span class="feed-item-name">${chat.name}</span>
+            <span class="feed-item-name">${esc(chat.name)}</span>
             ${isStarred ? `<i data-lucide="star" style="width: 13px; height: 13px; fill: var(--primary-yellow); stroke: var(--primary-yellow); flex-shrink: 0;"></i>` : ''}
           </div>
-          <span class="feed-item-time">${chat.lastMessageTime}</span>
+          <span class="feed-item-time">${esc(chat.lastMessageTime)}</span>
         </div>
         <div class="feed-item-msg-row">
-          <span class="feed-item-preview">${chat.lastMessage}</span>
+          <span class="feed-item-preview">${esc(chat.lastMessage)}</span>
           ${chat.unreadCount > 0 ? `<span class="unread-badge">${chat.unreadCount}</span>` : ''}
         </div>
       </div>
@@ -1478,6 +1573,8 @@ function renderChatActiveWindow(chatId) {
 
   // Render Header Details
   document.getElementById('active-chat-title').textContent = chat.name;
+  const addMemberBtn = document.getElementById('btn-add-member');
+  if (addMemberBtn) addMemberBtn.style.display = chat.type === 'space' ? '' : 'none';
 
   const statusEl = document.getElementById('active-chat-status');
   if (chat.type === 'space') {
@@ -1497,7 +1594,11 @@ function renderChatActiveWindow(chatId) {
   const chatAvatar = document.getElementById('active-chat-avatar');
   const initials = chat.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 
-  chatAvatar.innerHTML = `<div class="message-avatar ${chat.avatarColor}" style="width:36px; height:36px; font-size:13px">${initials}</div>`;
+  if (chat.avatarPhotoURL) {
+    chatAvatar.innerHTML = `<div class="message-avatar" style="width:36px; height:36px; padding:0; background:transparent; border:none;"><img src="${esc(chat.avatarPhotoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+  } else {
+    chatAvatar.innerHTML = `<div class="message-avatar ${esc(chat.avatarColor)}" style="width:36px; height:36px; font-size:13px">${esc(initials)}</div>`;
+  }
 
   // Update star button active state
   const starChatBtn = document.getElementById('btn-star-chat');
@@ -1520,11 +1621,26 @@ function renderChatActiveWindow(chatId) {
   document.getElementById('banner-title').textContent = chat.name;
   const bannerAvatar = document.getElementById('banner-avatar-icon');
 
-  bannerAvatar.className = `banner-avatar ${chat.avatarColor}`;
-  bannerAvatar.innerHTML = initials;
-  document.getElementById('banner-subtitle').textContent = chat.type === 'space'
-    ? `This is the start of the ${chat.name} Space. Created by Sarah.`
-    : `This is the start of your secure direct message with ${chat.name}.`;
+  if (chat.avatarPhotoURL) {
+    bannerAvatar.className = 'banner-avatar';
+    bannerAvatar.style.padding = '0';
+    bannerAvatar.style.background = 'transparent';
+    bannerAvatar.style.border = 'none';
+    bannerAvatar.innerHTML = `<img src="${esc(chat.avatarPhotoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+  } else {
+    bannerAvatar.className = `banner-avatar ${esc(chat.avatarColor)}`;
+    bannerAvatar.removeAttribute('style');
+    bannerAvatar.textContent = initials;
+  }
+  if (chat.type === 'support') {
+    document.getElementById('banner-subtitle').textContent = chat.ticketExists
+      ? `This is the start of your support conversation with our team.`
+      : `Your support ticket is closed. Click the button below to open a ticket.`;
+  } else {
+    document.getElementById('banner-subtitle').textContent = chat.type === 'space'
+      ? `This is the start of the ${chat.name} Space.`
+      : `This is the start of your secure direct message with ${chat.name}.`;
+  }
 
   // Message history rendering
   const wrapper = document.getElementById('messages-list-wrapper');
@@ -1543,19 +1659,20 @@ function renderChatActiveWindow(chatId) {
     if (msg.isDeleted) {
       item.className = 'message-item system';
       const deleterName = msg.isMe ? getCurrentUserName() : (msg.senderName || 'a member of this conversation');
-      item.innerHTML = `<div class="message-deleted">Message deleted by ${deleterName} <span style="font-size:10px; margin-left:8px; font-style:normal; color:var(--text-secondary);">${msg.time.split(',')[1] || msg.time}</span></div>`;
+      item.innerHTML = `<div class="message-deleted">Message deleted by ${esc(deleterName)} <span style="font-size:10px; margin-left:8px; font-style:normal; color:var(--text-secondary);">${esc(msg.time.split(',')[1] || msg.time)}</span></div>`;
       container.appendChild(item);
     } else {
       item.className = `message-item ${msg.isMe ? 'sent' : ''}`;
 
       const user = auth.currentUser;
       let msgAvatarHtml = '';
-      if (msg.isMe && user && user.photoURL) {
-        msgAvatarHtml = `<div class="message-avatar" style="padding: 0; background: transparent; border: none;"><img src="${user.photoURL}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+      const photoURL = msg.isMe ? (user?.photoURL) : msg.senderPhotoURL;
+      if (photoURL) {
+        msgAvatarHtml = `<div class="message-avatar" style="padding: 0; background: transparent; border: none;"><img src="${esc(photoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
       } else {
         const msgInitials = msg.isMe ? getCurrentUserInitials() : msg.senderName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
         const msgAvatarColor = msg.isMe ? 'yellow' : chat.avatarColor;
-        msgAvatarHtml = `<div class="message-avatar ${msgAvatarColor}">${msgInitials}</div>`;
+        msgAvatarHtml = `<div class="message-avatar ${esc(msgAvatarColor)}">${esc(msgInitials)}</div>`;
       }
 
       // Rich layout card logic (Calyx Meet updates)
@@ -1564,11 +1681,11 @@ function renderChatActiveWindow(chatId) {
         cardHtml = `
           <div class="rich-card">
             <div class="rich-card-header">
-              <div class="rich-card-icon"><i data-lucide="${msg.richCard.icon}"></i></div>
-              <span class="rich-card-title">${msg.richCard.title}</span>
+              <div class="rich-card-icon"><i data-lucide="${esc(msg.richCard.icon)}"></i></div>
+              <span class="rich-card-title">${esc(msg.richCard.title)}</span>
             </div>
-            <p class="rich-card-desc">${msg.richCard.desc}</p>
-            <button class="rich-card-btn" onclick="alert('Demo feature: Opening pipeline logs.')">${msg.richCard.btnText}</button>
+            <p class="rich-card-desc">${esc(msg.richCard.desc)}</p>
+            <button class="rich-card-btn" onclick="alert('Demo feature: Opening pipeline logs.')">${esc(msg.richCard.btnText)}</button>
           </div>
         `;
       }
@@ -1580,9 +1697,9 @@ function renderChatActiveWindow(chatId) {
         const replySender = replyMsg ? (replyMsg.isMe ? 'You' : replyMsg.senderName) : 'Message';
         const replyText = replyMsg ? (replyMsg.isDeleted ? 'Deleted message' : replyMsg.text) : 'Original message';
         replyRefHtml = `
-          <div class="message-bubble-reply-ref" data-target-id="${msg.replyTo}" style="cursor: pointer;">
-            <span class="reply-ref-name">${replySender}</span>
-            ${replyText}
+          <div class="message-bubble-reply-ref" data-target-id="${esc(msg.replyTo)}" style="cursor: pointer;">
+            <span class="reply-ref-name">${esc(replySender)}</span>
+            ${esc(replyText)}
           </div>
         `;
       }
@@ -1596,13 +1713,13 @@ function renderChatActiveWindow(chatId) {
         </div>
         <div class="message-content-wrap">
           <div class="message-sender-row">
-            <span class="message-sender-name">${msg.isMe ? getCurrentUserName() : msg.senderName}</span>
-            <span class="message-time">${msg.time}</span>
+            <span class="message-sender-name">${esc(msg.isMe ? getCurrentUserName() : msg.senderName)}</span>
+            <span class="message-time">${esc(msg.time)}</span>
             ${editedHtml}
           </div>
           <div class="message-bubble">
             ${replyRefHtml}
-            ${msg.text}
+            ${esc(msg.text)}
             ${cardHtml}
           </div>
         </div>
@@ -1640,16 +1757,23 @@ function renderChatActiveWindow(chatId) {
     msgContainer.scrollTop = msgContainer.scrollHeight;
   }, 50);
 
-  // Toggle bot options or normal input
+  // Toggle bot options, support ticket, or normal input
   const botOptionsWrapper = document.getElementById('bot-options-wrapper');
   const normalChatInputWrapper = document.getElementById('normal-chat-input-wrapper');
-  if (botOptionsWrapper && normalChatInputWrapper) {
+  const supportTicketWrapper = document.getElementById('support-ticket-wrapper');
+  if (botOptionsWrapper && normalChatInputWrapper && supportTicketWrapper) {
     if (chatId === 'calyx-bot') {
       botOptionsWrapper.style.display = 'block';
       normalChatInputWrapper.style.display = 'none';
+      supportTicketWrapper.style.display = 'none';
+    } else if (chat.type === 'support' && !chat.ticketExists) {
+      botOptionsWrapper.style.display = 'none';
+      normalChatInputWrapper.style.display = 'none';
+      supportTicketWrapper.style.display = 'block';
     } else {
       botOptionsWrapper.style.display = 'none';
       normalChatInputWrapper.style.display = 'flex';
+      supportTicketWrapper.style.display = 'none';
     }
   }
 
@@ -1938,11 +2062,13 @@ function setupRealtimeListeners() {
       let chatName = data.name;
       let avatarColor = data.avatarColor || 'yellow';
 
+      let avatarPhotoURL = null;
       if (isDM) {
         const otherUid = data.participants.find(p => p !== user.uid);
         const otherDetails = data.participantDetails?.[otherUid] || {};
         chatName = otherDetails.displayName || otherDetails.email?.split('@')[0] || 'Unknown User';
         avatarColor = otherDetails.avatarColor || 'yellow';
+        avatarPhotoURL = otherDetails.photoURL || null;
       }
 
       const lastMsgTime = formatTimestamp(data.lastMessageTime);
@@ -1952,10 +2078,13 @@ function setupRealtimeListeners() {
         type: data.type,
         name: chatName,
         avatarColor: avatarColor,
+        avatarPhotoURL: avatarPhotoURL,
         lastMessage: data.lastMessage || (data.type === 'space' ? 'Space created' : 'Conversation started'),
         lastMessageTime: lastMsgTime,
         unreadCount: 0,
         status: data.status || (isDM ? 'online' : 'offline'),
+        participants: data.participants || [],
+        ticketExists: true, // doc exists, so a support ticket exists (support UI reads this)
         history: state.chats[docSnap.id]?.history || []
       };
     });
@@ -1992,6 +2121,7 @@ function setupMessagesListener(chatId) {
         id: docSnap.id,
         senderName: data.senderName,
         isMe: data.senderUid === auth.currentUser?.uid,
+        senderPhotoURL: data.senderPhotoURL || null,
         text: data.text,
         time: timeString,
         isDeleted: data.isDeleted || false,
@@ -2008,9 +2138,49 @@ function setupMessagesListener(chatId) {
   });
 }
 
+// Add a user to a space; they see it via their participants listener. Returns true on success.
+async function addMemberToSpace(spaceId, targetUser) {
+  const myUser = auth.currentUser;
+  if (!myUser) return false;
+  const name = targetUser.displayName || targetUser.email?.split('@')[0] || 'Someone';
+  try {
+    await updateDoc(doc(db, 'chat_conversations', spaceId), {
+      participants: arrayUnion(targetUser.uid),
+      [`participantDetails.${targetUser.uid}`]: {
+        displayName: name,
+        email: targetUser.email || null,
+        photoURL: targetUser.photoURL || null,
+        avatarColor: targetUser.avatarColor || 'teal'
+      },
+      lastMessage: `${getCurrentUserName()} added ${name}`,
+      lastMessageTime: serverTimestamp()
+    });
+    showToast(`Added ${name} to the space`);
+    return true;
+  } catch (err) {
+    console.error('Error adding member:', err);
+    showToast('Failed to add member.');
+    return false;
+  }
+}
+
+// Search the user directory by name/email, skipping me and anyone in `excludeUids`
+async function findUsers(queryText, excludeUids = []) {
+  const queryVal = queryText.trim().toLowerCase();
+  const skip = new Set([auth.currentUser?.uid, ...excludeUids]);
+  const usersSnap = await getDocs(collection(db, 'users'));
+  return usersSnap.docs.map(d => d.data()).filter(u =>
+    !skip.has(u.uid) && (
+      !queryVal ||
+      u.displayName?.toLowerCase().includes(queryVal) ||
+      u.email?.toLowerCase().includes(queryVal)
+    )
+  );
+}
+
 // Render User Directory Search Results
-function renderSearchResults(matches) {
-  const dropdown = document.getElementById('search-results-dropdown');
+function renderSearchResults(matches, dropdownId = 'search-results-dropdown', onPick = startDirectMessage) {
+  const dropdown = document.getElementById(dropdownId);
   if (!dropdown) return;
 
   dropdown.innerHTML = '';
@@ -2028,16 +2198,23 @@ function renderSearchResults(matches) {
       ? user.displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
       : user.email.slice(0, 2).toUpperCase();
 
+    let avatarHtml = '';
+    if (user.photoURL) {
+      avatarHtml = `<div class="search-result-avatar" style="padding: 0; background: transparent; border: none;"><img src="${esc(user.photoURL)}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;"></div>`;
+    } else {
+      avatarHtml = `<div class="search-result-avatar ${esc(user.avatarColor || 'teal')}">${esc(initials)}</div>`;
+    }
+
     item.innerHTML = `
-      <div class="search-result-avatar ${user.avatarColor || 'teal'}">${initials}</div>
+      ${avatarHtml}
       <div class="search-result-info">
-        <span class="search-result-name">${user.displayName}</span>
-        <span class="search-result-email">${user.email}</span>
+        <span class="search-result-name">${esc(user.displayName)}</span>
+        <span class="search-result-email">${esc(user.email)}</span>
       </div>
     `;
 
     item.addEventListener('click', () => {
-      startDirectMessage(user);
+      onPick(user);
     });
 
     dropdown.appendChild(item);
@@ -2076,11 +2253,13 @@ async function startDirectMessage(targetUser) {
           [myUser.uid]: {
             displayName: myUser.displayName || myUser.email.split('@')[0],
             email: myUser.email,
+            photoURL: myUser.photoURL || null,
             avatarColor: 'yellow'
           },
           [targetUser.uid]: {
             displayName: targetUser.displayName,
             email: targetUser.email,
+            photoURL: targetUser.photoURL || null,
             avatarColor: targetUser.avatarColor || 'teal'
           }
         },
@@ -2108,6 +2287,7 @@ async function sendMessageToFirestore(conversationId, text, replyTo = null) {
     const messageObj = {
       senderUid: myUser.uid,
       senderName: myUser.displayName || myUser.email.split('@')[0],
+      senderPhotoURL: myUser.photoURL || null,
       text: text,
       time: serverTimestamp()
     };
